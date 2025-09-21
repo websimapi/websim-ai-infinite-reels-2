@@ -7,24 +7,22 @@ export async function generateVideoContent() {
         const projectData = await fetchWebsimProjectData();
         
         // Generate AI video concept based on project metadata
-        const concept = await generateAIConcept(projectData);
+        const script = await generateAIConcept(projectData);
+
+        // Calculate total duration from scene scripts
+        const totalDurationInSeconds = script.scenes.reduce((acc, scene) => acc + (scene.durationInSeconds || 3), 0);
+        const durationInFrames = Math.max(180, Math.floor(totalDurationInSeconds * 30));
         
         // Create video configuration with validation
         const content = {
-            title: concept.title || projectData.title || "AI Video",
-            description: concept.description || projectData.description || "Generated content",
-            tags: concept.tags || ["ai", "video"],
-            durationInFrames: 300, // Increased duration for more complex scenes
+            title: script.title || projectData.title || "AI Video",
+            description: script.description || projectData.description || "Generated content",
+            tags: script.tags || ["ai", "video"],
+            durationInFrames: durationInFrames,
             inputProps: {
-                concept: concept.visualConcept || "Abstract art",
-                colors: concept.colors || ["#00ffff", "#ff00ff", "#ffffff"],
-                animation: concept.animation || "smooth",
-                text: concept.text || projectData.title || "AI Video",
-                style: concept.style || "cyberpunk",
-                // Add creator and project info
+                scenes: script.scenes,
                 creator: projectData.creator,
-                projectTitle: projectData.title,
-                projectDescription: projectData.description
+                projectTitle: projectData.title
             }
         };
         
@@ -140,43 +138,73 @@ async function fetchWebsimProjectData() {
 async function generateAIConcept(projectData) {
     try {
         const prompt = `
-Create a compelling short video concept for a Websim project. The video should be dynamic, visually interesting, and tell a story about the project's creation and features.
+Create a compelling short video script for a Websim project. The video should be dynamic, visually interesting, and tell a story about the project's creation and features. Total duration should be around 10-15 seconds.
 
 **Project Context:**
 - **Title:** ${projectData.title}
 - **Creator:** @${projectData.creator.username}
 - **Description:** ${projectData.description}
 - **Category:** ${projectData.category}
-
-**Development Insights (from AI's thought process):**
-${projectData.revisionsSummary || "No development insights available."}
-
-**Project Assets:**
-${projectData.assetsInfo || "No asset data available."}
+- **Development Insights (from AI's thought process):**
+  ${projectData.revisionsSummary || "No development insights available."}
+- **Project Assets:**
+  ${projectData.assetsInfo || "No asset data available."}
 
 **Your Task:**
-Based on all the provided context, generate a JSON object for a 10-second video. The JSON object should have the following structure:
+Based on all the provided context, generate a JSON object for a multi-scene video. The JSON object should have the following structure:
 {
   "title": "A catchy title for the video (max 50 chars)",
   "description": "A short, engaging description for the video (max 100 chars)",
   "tags": ["an", "array", "of", "3-5", "relevant", "tags"],
-  "visualConcept": "A descriptive plan for the visuals. Describe what happens in the video second-by-second. Be creative!",
-  "colors": ["an", "array", "of", "2-3", "hex", "colors", "that", "match", "the", "mood"],
-  "animation": "Choose one: 'smooth', 'bouncy', 'dramatic', 'energetic'",
-  "text": "A short, impactful text overlay for the video (max 30 chars).",
-  "style": "Choose one: 'cyberpunk', 'minimal', 'retro', 'corporate', 'artistic'"
+  "scenes": [
+    {
+      "durationInSeconds": 3,
+      "visualConcept": "A descriptive plan for the visuals for this scene. Be creative!",
+      "text": "A short, impactful text overlay for this scene (max 30 chars). Can be empty.",
+      "colors": ["an", "array", "of", "2-3", "hex", "colors"],
+      "animation": "Choose one: 'smooth', 'bouncy', 'dramatic', 'energetic'",
+      "style": "Choose one: 'cyberpunk', 'minimal', 'retro', 'corporate', 'artistic'"
+    }
+  ]
 }
 
-Be creative and make the concept reflect the essence of the project.`;
+Create 2 to 4 scenes that flow together to tell a story. For example:
+1. **Hook:** An intriguing visual related to the project title. (2-3 seconds)
+2. **Showcase:** A scene showing off a key feature or the project's purpose. (4-6 seconds)
+3. **Creator/CTA:** A scene mentioning the creator and the project title. (3-4 seconds)
+
+Be creative and make the concept reflect the essence of the project. Ensure the total duration is between 10 and 15 seconds.`;
 
         const completion = await websim.chat.completions.create({
             messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
             json: true,
         });
-        return JSON.parse(completion.content);
+        const parsedContent = JSON.parse(completion.content);
+
+        // Basic validation
+        if (!parsedContent.scenes || !Array.isArray(parsedContent.scenes) || parsedContent.scenes.length === 0) {
+            console.warn("AI returned invalid scenes structure. Falling back.");
+            return generateRandomConcept(projectData);
+        }
+        return parsedContent;
+
     } catch (error) {
         console.error("AI concept generation failed:", error);
-        return generateRandomConcept(projectData);
+        // Return a structured response that matches what the composition expects
+        const randomConcept = generateRandomConcept(projectData);
+        return {
+            title: randomConcept.title,
+            description: randomConcept.description,
+            tags: randomConcept.tags,
+            scenes: [{
+                durationInSeconds: 10,
+                visualConcept: randomConcept.visualConcept,
+                text: randomConcept.text,
+                colors: randomConcept.colors,
+                animation: randomConcept.animation,
+                style: randomConcept.style
+            }]
+        };
     }
 }
 
@@ -218,17 +246,24 @@ function generateRandomConcept(projectData) {
 }
 
 function generateFallbackContent() {
+    const scene = {
+        durationInSeconds: 10,
+        concept: "Abstract geometric patterns",
+        colors: ["#00ffff", "#ff00ff", "#ffffff"],
+        animation: "smooth",
+        text: "AI Creativity",
+        style: "cyberpunk"
+    };
+
     return {
         title: "AI Generated Content",
         description: "Explore the possibilities of AI creativity",
         tags: ["ai", "generated", "creative"],
         durationInFrames: 300,
         inputProps: {
-            concept: "Abstract geometric patterns",
-            colors: ["#00ffff", "#ff00ff", "#ffffff"],
-            animation: "smooth",
-            text: "AI Creativity",
-            style: "cyberpunk"
+            scenes: [scene],
+            creator: { username: "websim", avatar_url: null, id: "websim" },
+            projectTitle: "AI Creativity"
         }
     };
 }
