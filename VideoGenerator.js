@@ -71,39 +71,13 @@ async function fetchWebsimProjectData() {
         };
     } catch (error) {
         console.log("Trending fetch failed, using fallback:", error);
-        // Fallback: try to get current project
-        const currentProject = await window.websim.getCurrentProject();
-        const creator = await window.websim.getCreator();
-        
-        if (currentProject && creator) {
-            return {
-                title: currentProject.title,
-                description: currentProject.description,
-                creator: creator,
-                projectId: currentProject.id,
-                category: 'current-project'
-            };
-        }
-        
-    } catch (error) {
-        console.log("Could not fetch project data, using fallback:", error);
+        try {
+            const currentProject = await window.websim?.getCurrentProject?.();
+            const creator = await window.websim?.getCreator?.();
+            if (currentProject && creator) return { title: currentProject.title, description: currentProject.description, creator, projectId: currentProject.id, category: "current-project", pageUrl: "", thumbnail: null, videoUrl: null, codeHtml: "" };
+        } catch (e) { console.log("Fallback to current project failed:", e); }
+        return { title: "AI Creative Exploration", description: "Discovering new frontiers in digital creativity", creator: { username: "websim", avatar_url: null, id: "websim" }, category: "technology", pageUrl: "", thumbnail: null, videoUrl: null, codeHtml: "" };
     }
-    
-    // Ultimate fallback
-    return {
-        title: "AI Creative Exploration",
-        description: "Discovering new frontiers in digital creativity",
-        creator: {
-            username: "websim",
-            avatar_url: null,
-            id: "websim"
-        },
-        category: "technology",
-        pageUrl: "",
-        thumbnail: null,
-        videoUrl: null,
-        codeHtml: ""
-    };
 }
 
 async function generateAIConcept(projectData) {
