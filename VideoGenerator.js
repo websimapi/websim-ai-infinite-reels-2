@@ -9,6 +9,30 @@ export async function generateVideoContent() {
         // Generate AI video concept based on project metadata
         const script = await generateAIConcept(projectData);
 
+        // Generate images for each scene
+        const imageGenerationPromises = script.scenes.map(async (scene) => {
+            if (scene.visualConcept) {
+                try {
+                    console.log(`Generating image for concept: "${scene.visualConcept}" with style: ${scene.style}`);
+                    const result = await websim.imageGen({
+                        prompt: `${scene.visualConcept}, in a ${scene.style} style, cinematic lighting, high detail, vertical composition`,
+                        width: 540,
+                        height: 960,
+                        aspect_ratio: "9:16"
+                    });
+                    scene.imageUrl = result.url;
+                    console.log(`Generated image URL: ${scene.imageUrl}`);
+                } catch (imgError) {
+                    console.error("Image generation failed for scene:", scene, imgError);
+                    // Using a placeholder image on failure
+                    scene.imageUrl = 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=1080&auto=format&fit=crop'; 
+                }
+            }
+            return scene;
+        });
+
+        script.scenes = await Promise.all(imageGenerationPromises);
+        
         // Calculate total duration from scene scripts
         const totalDurationInSeconds = script.scenes.reduce((acc, scene) => acc + (scene.durationInSeconds || 3), 0);
         const durationInFrames = Math.max(180, Math.floor(totalDurationInSeconds * 30));
@@ -159,7 +183,7 @@ Based on all the provided context, generate a JSON object for a multi-scene vide
   "scenes": [
     {
       "durationInSeconds": 3,
-      "visualConcept": "A descriptive plan for the visuals for this scene. Be creative!",
+      "visualConcept": "A detailed DALL-E prompt for an image that visually represents this scene. Be descriptive and creative. This will be used to generate an asset.",
       "text": "A short, impactful text overlay for this scene (max 30 chars). Can be empty.",
       "colors": ["an", "array", "of", "2-3", "hex", "colors"],
       "animation": "Choose one: 'smooth', 'bouncy', 'dramatic', 'energetic'",
@@ -248,7 +272,8 @@ function generateRandomConcept(projectData) {
 function generateFallbackContent() {
     const scene = {
         durationInSeconds: 10,
-        concept: "Abstract geometric patterns",
+        visualConcept: "Abstract geometric patterns",
+        imageUrl: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=1080&auto=format&fit=crop',
         colors: ["#00ffff", "#ff00ff", "#ffffff"],
         animation: "smooth",
         text: "AI Creativity",

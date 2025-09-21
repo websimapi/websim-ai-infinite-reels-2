@@ -7,7 +7,8 @@ import {
   useVideoConfig,
   spring,
   Series,
-  Sequence
+  Sequence,
+  Img
 } from "remotion";
 const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
   const frame = useCurrentFrame();
@@ -18,7 +19,8 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
     animation,
     text,
     style,
-    visualConcept
+    visualConcept,
+    imageUrl
   } = scene;
   const contentOpacity = spring({
     fps,
@@ -50,6 +52,64 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
     }
   };
   return /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { background: getBackground(), opacity: sceneOpacity }, children: [
+    imageUrl ? /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { opacity: contentOpacity }, children: [
+      /* @__PURE__ */ jsxDEV(
+        Img,
+        {
+          src: imageUrl,
+          style: {
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: `scale(${interpolate(frame, [0, durationInFrames], [1.1, 1])})`
+          }
+        },
+        void 0,
+        false,
+        {
+          fileName: "<stdin>",
+          lineNumber: 70,
+          columnNumber: 21
+        }
+      ),
+      /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { backgroundColor: "rgba(0,0,0,0.3)" } }, void 0, false, {
+        fileName: "<stdin>",
+        lineNumber: 79,
+        columnNumber: 21
+      })
+    ] }, void 0, true, {
+      fileName: "<stdin>",
+      lineNumber: 69,
+      columnNumber: 17
+    }) : /* @__PURE__ */ jsxDEV(
+      AbsoluteFill,
+      {
+        style: {
+          justifyContent: "center",
+          alignItems: "center",
+          opacity: contentOpacity
+        },
+        children: /* @__PURE__ */ jsxDEV("div", { style: {
+          fontSize: 24,
+          color: accentColor,
+          textAlign: "center",
+          maxWidth: "80%",
+          opacity: 0.8,
+          padding: 20
+        }, children: visualConcept || "Loading visual..." }, void 0, false, {
+          fileName: "<stdin>",
+          lineNumber: 89,
+          columnNumber: 21
+        })
+      },
+      void 0,
+      false,
+      {
+        fileName: "<stdin>",
+        lineNumber: 82,
+        columnNumber: 18
+      }
+    ),
     isFirstScene && creator && /* @__PURE__ */ jsxDEV(
       AbsoluteFill,
       {
@@ -91,7 +151,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
                 false,
                 {
                   fileName: "<stdin>",
-                  lineNumber: 88,
+                  lineNumber: 125,
                   columnNumber: 25
                 }
               ),
@@ -114,7 +174,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
                   true,
                   {
                     fileName: "<stdin>",
-                    lineNumber: 100,
+                    lineNumber: 137,
                     columnNumber: 29
                   }
                 ),
@@ -132,13 +192,13 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
                   false,
                   {
                     fileName: "<stdin>",
-                    lineNumber: 110,
+                    lineNumber: 147,
                     columnNumber: 29
                   }
                 )
               ] }, void 0, true, {
                 fileName: "<stdin>",
-                lineNumber: 99,
+                lineNumber: 136,
                 columnNumber: 25
               })
             ]
@@ -147,7 +207,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
           true,
           {
             fileName: "<stdin>",
-            lineNumber: 75,
+            lineNumber: 112,
             columnNumber: 21
           }
         )
@@ -156,38 +216,8 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 67,
+        lineNumber: 104,
         columnNumber: 17
-      }
-    ),
-    /* @__PURE__ */ jsxDEV(
-      AbsoluteFill,
-      {
-        style: {
-          justifyContent: "center",
-          alignItems: "center",
-          opacity: contentOpacity,
-          transform: `scale(${scale})`
-        },
-        children: /* @__PURE__ */ jsxDEV("div", { style: {
-          fontSize: 24,
-          color: accentColor,
-          textAlign: "center",
-          maxWidth: "80%",
-          opacity: 0.8,
-          padding: 20
-        }, children: visualConcept }, void 0, false, {
-          fileName: "<stdin>",
-          lineNumber: 133,
-          columnNumber: 18
-        })
-      },
-      void 0,
-      false,
-      {
-        fileName: "<stdin>",
-        lineNumber: 125,
-        columnNumber: 13
       }
     ),
     text && /* @__PURE__ */ jsxDEV(
@@ -215,7 +245,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
           false,
           {
             fileName: "<stdin>",
-            lineNumber: 153,
+            lineNumber: 192,
             columnNumber: 21
           }
         )
@@ -224,13 +254,13 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 147,
+        lineNumber: 186,
         columnNumber: 18
       }
     )
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 64,
+    lineNumber: 66,
     columnNumber: 9
   });
 };
@@ -239,11 +269,11 @@ const AIVideoComposition = ({ scenes, creator, projectTitle }) => {
   if (!scenes || scenes.length === 0) {
     return /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { background: "#111", justifyContent: "center", alignItems: "center" }, children: /* @__PURE__ */ jsxDEV("h1", { style: { color: "white", fontSize: 48 }, children: "Loading Scene..." }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 178,
+      lineNumber: 217,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 177,
+      lineNumber: 216,
       columnNumber: 13
     });
   }
@@ -263,7 +293,7 @@ const AIVideoComposition = ({ scenes, creator, projectTitle }) => {
         false,
         {
           fileName: "<stdin>",
-          lineNumber: 191,
+          lineNumber: 230,
           columnNumber: 25
         }
       )
@@ -272,16 +302,16 @@ const AIVideoComposition = ({ scenes, creator, projectTitle }) => {
     false,
     {
       fileName: "<stdin>",
-      lineNumber: 187,
+      lineNumber: 226,
       columnNumber: 21
     }
   )) }, void 0, false, {
     fileName: "<stdin>",
-    lineNumber: 185,
+    lineNumber: 224,
     columnNumber: 13
   }) }, void 0, false, {
     fileName: "<stdin>",
-    lineNumber: 184,
+    lineNumber: 223,
     columnNumber: 9
   });
 };
