@@ -115,8 +115,11 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3, reel
             const sceneNum = i + 1;
             console.log(`[VideoGenerator] ${reelId}: Starting asset generation for Scene ${sceneNum}...`);
 
-            // Image Generation
-            if (scene.visualConcept) {
+            // Image Generation: Use project image if AI chose one, otherwise generate a new one.
+            if (scene.imageUrl && typeof scene.imageUrl === 'string' && scene.imageUrl.startsWith('http')) {
+                updateStatus(`${reelId} (Scene ${sceneNum}/${script.scenes.length}): Using project visual...`);
+                console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Using pre-existing image URL from project: ${scene.imageUrl}`);
+            } else if (scene.visualConcept) {
                 updateStatus(`${reelId} (Scene ${sceneNum}/${script.scenes.length}): Generating visual...`);
                 console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Generating image for concept: "${scene.visualConcept}"`);
                 try {
@@ -132,6 +135,9 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3, reel
                     console.error(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Image generation failed. Using fallback.`, imgError);
                     scene.imageUrl = `https://picsum.photos/seed/${Date.now() + i}/540/960`; // Fallback
                 }
+            } else {
+                 console.warn(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Scene has neither a valid imageUrl nor a visualConcept. Using fallback image.`);
+                 scene.imageUrl = `https://picsum.photos/seed/${Date.now() + i}/540/960`;
             }
 
             // Audio Generation
@@ -246,6 +252,17 @@ async function fetchWebsimProjectData() {
             screenshotUrl: item.project_revision?.current_screenshot_url || project.thumbnail?.url
         };
 
+        // NEW: Scrape images from the project's page to use in the video
+        if (projectDetails.pageUrl) {
+            const allImages = await scrapeProjectImages(projectDetails.pageUrl);
+            projectDetails.scrapedImages = allImages
+                .filter(img => !img.startsWith('data:') && !img.includes('.svg') && !img.includes('avatar'))
+                .slice(0, 5); // Limit to 5 to keep the prompt clean
+            if (projectDetails.scrapedImages.length > 0) {
+                console.log(`[VideoGenerator] Found ${projectDetails.scrapedImages.length} usable images from project page.`);
+            }
+        }
+
         // Fetch more details if we have a project ID
         if (projectDetails.projectId) {
             try {
@@ -304,6 +321,14 @@ async function fetchWebsimProjectData() {
 
 async function generateAIConcept(projectData, scenesPerReel) {
     try {
+        const scrapedImagesInfo = (projectData.scrapedImages && projectData.scrapedImages.length > 0)
+            ? `
+**Project Images Available:**
+You can use these image URLs directly in the video. When you use one, set the "imageUrl" field for that scene and leave "visualConcept" as an empty string.
+- ${projectData.scrapedImages.join('\n- ')}
+`
+            : "**No project images were found.** You must generate a 'visualConcept' for every scene.";
+
         const prompt = `
 Create a compelling short video script for a Websim project, using the provided screenshot for visual context. The video should be dynamic, visually interesting, and tell a story about the project's creation and features.
 
@@ -316,9 +341,10 @@ Create a compelling short video script for a Websim project, using the provided 
 - **Project Assets:**
   ${projectData.assetsInfo || "No asset data available."}
 - **Analyze the attached screenshot of the project to inform your creative choices.**
+${scrapedImagesInfo}
 
 **Your Task:**
-Based on all the provided context (text AND image), generate a JSON object for a multi-scene video. The JSON object must have the following structure:
+Based on all the provided context (text, screenshot, and available project images), generate a JSON object for a multi-scene video. The JSON object must have the following structure:
 {
   "title": "A catchy title for the video (max 50 chars)",
   "description": "A short, engaging description for the video (max 100 chars)",
@@ -326,7 +352,8 @@ Based on all the provided context (text AND image), generate a JSON object for a
   "scenes": [
     {
       "durationInSeconds": 3,
-      "visualConcept": "A detailed DALL-E prompt for an image that visually represents this scene, inspired by the project context and screenshot. Be descriptive and creative.",
+      "visualConcept": "A detailed DALL-E prompt for an image that visually represents this scene. LEAVE EMPTY IF USING imageUrl.",
+      "imageUrl": "URL of an image from the 'Project Images Available' list. LEAVE EMPTY IF USING visualConcept.",
       "text": "A short, impactful text overlay for this scene (max 30 chars). Can be empty.",
       "speech": "A voiceover script for this scene (max 150 chars). This should narrate the scene. Can be empty.",
       "colors": ["an", "array", "of", "2-3", "hex", "colors"],
@@ -336,15 +363,19 @@ Based on all the provided context (text AND image), generate a JSON object for a
   ]
 }
 
+- For each scene, you must provide EITHER a "visualConcept" OR an "imageUrl". Do not provide both.
+- Use at least one image from the project if any are available. Mix project images with newly generated ones for a dynamic feel.
+- Make the script tell a coherent story about the project.
+
 Create exactly ${scenesPerReel} scenes that flow together to tell a story.
 The total duration should be between ${scenesPerReel * 2} and ${scenesPerReel * 4} seconds.
 
 Example flow:
 1. **Hook:** An intriguing visual related to the project title and screenshot.
-2. **Showcase:** A scene showing off a key feature or the project's purpose.
-3. **Creator/CTA:** A scene mentioning the creator and the project title.
+2. **Showcase:** A scene using an actual image from the project ('imageUrl') to show off a key feature.
+3. **Creator/CTA:** A scene mentioning the creator and the project title, possibly with another generated visual.
 
-Be creative and make the concept reflect the essence of the project, heavily influenced by the provided screenshot.`;
+Be creative and make the concept reflect the essence of the project, heavily influenced by the provided screenshot and available images.`;
 
         const messages = [{
             role: "user",
