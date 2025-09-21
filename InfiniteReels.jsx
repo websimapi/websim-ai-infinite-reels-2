@@ -6,10 +6,16 @@ import { generateVideoContent } from "./VideoGenerator.js";
 const InfiniteReels = () => {
   const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState("AI is creating your next reel...");
   const [currentIndex, setCurrentIndex] = useState(0);
   const containerRef = useRef(null);
   const observerRef = useRef(null);
   const generationLock = useRef(false);
+  const timeoutRef = useRef(null);
+  const updateStatus = (message) => {
+    console.log(`[Status] ${message}`);
+    setLoadingStatus(message);
+  };
   const generateNewReel = useCallback(async () => {
     if (generationLock.current) {
       console.log("[InfiniteReels] Generation already in progress. Skipping.");
@@ -18,8 +24,17 @@ const InfiniteReels = () => {
     console.log("[InfiniteReels] Starting new reel generation...");
     generationLock.current = true;
     setLoading(true);
+    updateStatus("Initializing AI...");
+    timeoutRef.current = setTimeout(() => {
+      console.error("[InfiniteReels] Generation timed out after 90 seconds.");
+      setLoading(false);
+      generationLock.current = false;
+    }, 9e4);
     try {
-      const content = await generateVideoContent();
+      const content = await generateVideoContent(updateStatus);
+      if (!content) {
+        throw new Error("Content generation returned null or undefined.");
+      }
       console.log("[InfiniteReels] Content generated:", content);
       const newReel = {
         id: Date.now() + Math.random(),
@@ -34,7 +49,9 @@ const InfiniteReels = () => {
       });
     } catch (error) {
       console.error("[InfiniteReels] Error generating reel:", error);
+      updateStatus("Failed to generate reel. Please wait for the next one.");
     } finally {
+      clearTimeout(timeoutRef.current);
       console.log("[InfiniteReels] Finished reel generation process.");
       setLoading(false);
       generationLock.current = false;
@@ -44,12 +61,12 @@ const InfiniteReels = () => {
     if (reels.length > 0) return;
     console.log("[InfiniteReels] Loading initial reels...");
     setLoading(true);
+    updateStatus("Warming up the AI...");
     generationLock.current = true;
     try {
-      const initialReelsContent = await Promise.all([
-        generateVideoContent(),
-        generateVideoContent()
-      ]);
+      const content1 = await generateVideoContent(updateStatus);
+      const content2 = await generateVideoContent(updateStatus);
+      const initialReelsContent = [content1, content2];
       console.log("[InfiniteReels] Initial content generated:", initialReelsContent);
       setReels(initialReelsContent.map((content, index) => ({
         id: Date.now() + index,
@@ -121,7 +138,7 @@ const InfiniteReels = () => {
               playerError
             ] }, void 0, true, {
               fileName: "<stdin>",
-              lineNumber: 140,
+              lineNumber: 163,
               columnNumber: 33
             }),
             /* @__PURE__ */ jsxDEV("div", { style: { fontSize: "12px", marginTop: "10px" }, children: [
@@ -129,12 +146,12 @@ const InfiniteReels = () => {
               JSON.stringify(reel, null, 2)
             ] }, void 0, true, {
               fileName: "<stdin>",
-              lineNumber: 141,
+              lineNumber: 164,
               columnNumber: 33
             })
           ] }, void 0, true, {
             fileName: "<stdin>",
-            lineNumber: 130,
+            lineNumber: 153,
             columnNumber: 29
           }) : /* @__PURE__ */ jsxDEV(
             Player,
@@ -166,39 +183,39 @@ const InfiniteReels = () => {
             false,
             {
               fileName: "<stdin>",
-              lineNumber: 146,
+              lineNumber: 169,
               columnNumber: 29
             }
           ) }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 128,
+            lineNumber: 151,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "reel-overlay" }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 173,
+            lineNumber: 196,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "progress-bar", style: { width: `${videoProgress}%` } }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 175,
+            lineNumber: 198,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "reel-metadata", children: [
             /* @__PURE__ */ jsxDEV("div", { className: "reel-title", children: reel.title }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 178,
+              lineNumber: 201,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "reel-description", children: reel.description }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 179,
+              lineNumber: 202,
               columnNumber: 25
             }),
             reel.inputProps?.creator && /* @__PURE__ */ jsxDEV("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10, opacity: 0.95 }, children: [
               /* @__PURE__ */ jsxDEV("img", { src: reel.inputProps.creator.avatar_url || `https://images.websim.com/avatar/${reel.inputProps.creator.username}`, alt: reel.inputProps.creator.username, style: { width: 24, height: 24, borderRadius: "50%" } }, void 0, false, {
                 fileName: "<stdin>",
-                lineNumber: 183,
+                lineNumber: 206,
                 columnNumber: 33
               }),
               /* @__PURE__ */ jsxDEV("span", { style: { fontSize: 12, opacity: 0.9 }, children: [
@@ -206,12 +223,12 @@ const InfiniteReels = () => {
                 reel.inputProps.creator.username
               ] }, void 0, true, {
                 fileName: "<stdin>",
-                lineNumber: 184,
+                lineNumber: 207,
                 columnNumber: 33
               })
             ] }, void 0, true, {
               fileName: "<stdin>",
-              lineNumber: 182,
+              lineNumber: 205,
               columnNumber: 29
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "reel-tags", children: reel.tags.map((tag, i) => /* @__PURE__ */ jsxDEV("span", { className: "tag", children: [
@@ -219,42 +236,42 @@ const InfiniteReels = () => {
               tag
             ] }, i, true, {
               fileName: "<stdin>",
-              lineNumber: 189,
+              lineNumber: 212,
               columnNumber: 33
             })) }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 187,
+              lineNumber: 210,
               columnNumber: 25
             })
           ] }, void 0, true, {
             fileName: "<stdin>",
-            lineNumber: 177,
+            lineNumber: 200,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "controls-overlay", children: [
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Like", children: "\u2764\uFE0F" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 195,
+              lineNumber: 218,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Share", children: "\u{1F4E4}" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 196,
+              lineNumber: 219,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Save", children: "\u{1F516}" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 197,
+              lineNumber: 220,
               columnNumber: 25
             })
           ] }, void 0, true, {
             fileName: "<stdin>",
-            lineNumber: 194,
+            lineNumber: 217,
             columnNumber: 21
           })
         ] }, void 0, true, {
           fileName: "<stdin>",
-          lineNumber: 127,
+          lineNumber: 150,
           columnNumber: 17
         })
       },
@@ -262,7 +279,7 @@ const InfiniteReels = () => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 123,
+        lineNumber: 146,
         columnNumber: 13
       }
     );
@@ -279,33 +296,33 @@ const InfiniteReels = () => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 207,
+        lineNumber: 230,
         columnNumber: 17
       }
     )),
     loading && /* @__PURE__ */ jsxDEV("div", { className: "reel-item", children: /* @__PURE__ */ jsxDEV("div", { className: "reel-content loading-reel", children: [
       /* @__PURE__ */ jsxDEV("div", { className: "loading-spinner" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 218,
+        lineNumber: 241,
         columnNumber: 25
       }),
-      /* @__PURE__ */ jsxDEV("div", { className: "loading-text", children: "AI is creating your next reel..." }, void 0, false, {
+      /* @__PURE__ */ jsxDEV("div", { className: "loading-text", children: loadingStatus }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 219,
+        lineNumber: 242,
         columnNumber: 25
       })
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 217,
+      lineNumber: 240,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 216,
+      lineNumber: 239,
       columnNumber: 17
     })
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 205,
+    lineNumber: 228,
     columnNumber: 9
   });
 };

@@ -1,15 +1,16 @@
 import * as api from './websim-api.js';
 
 // AI-powered video content generator using Websim metadata
-export async function generateVideoContent() {
+export async function generateVideoContent(updateStatus) {
     try {
+        updateStatus("Fetching project data...");
         console.log("[VideoGenerator] Starting video content generation...");
         // Fetch websim project data for inspiration
         console.log("[VideoGenerator] Fetching websim project data...");
         const projectData = await fetchWebsimProjectData();
         console.log("[VideoGenerator] Fetched project data:", projectData);
         
-        // Generate AI video concept based on project metadata
+        updateStatus("Designing scenes with AI...");
         console.log("[VideoGenerator] Generating AI concept script...");
         const script = await generateAIConcept(projectData);
         console.log("[VideoGenerator] Generated AI script:", script);
@@ -19,12 +20,16 @@ export async function generateVideoContent() {
             return generateFallbackContent();
         }
 
-        // Generate images for each scene
-        console.log(`[VideoGenerator] Generating ${script.scenes.length} images for scenes...`);
-        const imageGenerationPromises = script.scenes.map(async (scene, index) => {
+        updateStatus("Generating visual assets...");
+        console.log(`[VideoGenerator] Generating images for ${script.scenes.length} scenes...`);
+
+        // Use a sequential loop for better debugging and to avoid overwhelming the image gen service.
+        for (let i = 0; i < script.scenes.length; i++) {
+            const scene = script.scenes[i];
+            updateStatus(`Generating visual for scene ${i + 1}/${script.scenes.length}...`);
             if (scene.visualConcept) {
                 try {
-                    console.log(`[VideoGenerator] Scene ${index + 1}: Generating image for concept: "${scene.visualConcept}" with style: ${scene.style}`);
+                    console.log(`[VideoGenerator] Scene ${i + 1}: Generating image for concept: "${scene.visualConcept}" with style: ${scene.style}`);
                     const result = await websim.imageGen({
                         prompt: `${scene.visualConcept}, in a ${scene.style} style, cinematic lighting, high detail, vertical composition`,
                         width: 540,
@@ -32,27 +37,22 @@ export async function generateVideoContent() {
                         aspect_ratio: "9:16"
                     });
                     scene.imageUrl = result.url;
-                    console.log(`[VideoGenerator] Scene ${index + 1}: Generated image URL: ${scene.imageUrl}`);
+                    console.log(`[VideoGenerator] Scene ${i + 1}: Generated image URL: ${scene.imageUrl}`);
                 } catch (imgError) {
-                    console.error(`[VideoGenerator] Scene ${index + 1}: Image generation failed.`, imgError);
-                    // Using a placeholder image on failure
+                    console.error(`[VideoGenerator] Scene ${i + 1}: Image generation failed.`, imgError);
                     scene.imageUrl = 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=1080&auto=format&fit=crop'; 
                 }
             }
-            return scene;
-        });
-
-        console.log("[VideoGenerator] Waiting for all image generation promises to resolve...");
-        script.scenes = await Promise.all(imageGenerationPromises);
+        }
+        
         console.log("[VideoGenerator] All images generated. Updated scenes:", script.scenes);
         
-        // Calculate total duration from scene scripts
+        updateStatus("Assembling your reel...");
         console.log("[VideoGenerator] Calculating total duration...");
         const totalDurationInSeconds = script.scenes.reduce((acc, scene) => acc + (scene.durationInSeconds || 3), 0);
         const durationInFrames = Math.max(180, Math.floor(totalDurationInSeconds * 30));
         console.log(`[VideoGenerator] Total duration: ${totalDurationInSeconds}s (${durationInFrames} frames)`);
         
-        // Create video configuration with validation
         console.log("[VideoGenerator] Creating final content object...");
         const content = {
             title: script.title || projectData.title || "AI Video",
@@ -70,6 +70,7 @@ export async function generateVideoContent() {
         return content;
     } catch (error) {
         console.error("[VideoGenerator] Critical error in generateVideoContent:", error);
+        updateStatus("An error occurred. Retrying...");
         return generateFallbackContent();
     }
 }
