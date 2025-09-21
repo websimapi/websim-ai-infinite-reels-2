@@ -166,6 +166,36 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3, reel
             const sceneNum = i + 1;
             console.log(`[VideoGenerator] ${reelId}: Starting asset generation for Scene ${sceneNum}...`);
 
+            // --- Path Correction Logic ---
+            // If imageUrl is a relative path, try to resolve it with project assets.
+            if (scene.imageUrl && scene.imageUrl.startsWith('/')) {
+                const assetName = scene.imageUrl.substring(1);
+                const projectAsset = projectData.assets?.find(a => a.path === assetName);
+                if (projectAsset && projectAsset.url) {
+                    console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Resolved relative path ${scene.imageUrl} to ${projectAsset.url}`);
+                    scene.imageUrl = projectAsset.url;
+                } else {
+                    console.warn(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Could not resolve relative image path: ${scene.imageUrl}. It will likely fail to load.`);
+                }
+            }
+
+            // Correct paths in layers as well
+            if(scene.layers && Array.isArray(scene.layers)) {
+                for (const layer of scene.layers) {
+                    if (layer.type === 'image' && layer.content && layer.content.startsWith('/')) {
+                        const assetName = layer.content.substring(1);
+                        const projectAsset = projectData.assets?.find(a => a.path === assetName);
+                        if (projectAsset && projectAsset.url) {
+                           console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum} Layer: Resolved relative path ${layer.content} to ${projectAsset.url}`);
+                           layer.content = projectAsset.url;
+                        } else {
+                           console.warn(`[VideoGenerator] ${reelId} Scene ${sceneNum} Layer: Could not resolve relative image path: ${layer.content}. It will likely fail to load.`);
+                        }
+                    }
+                }
+            }
+            // --- End Path Correction ---
+
             // Image Generation: Use project image if AI chose one, otherwise generate a new one.
             if (scene.imageUrl && typeof scene.imageUrl === 'string' && scene.imageUrl.startsWith('http')) {
                 updateStatus(`${reelId} (Scene ${sceneNum}/${script.scenes.length}): Using project visual...`);
@@ -333,6 +363,7 @@ async function fetchWebsimProjectData() {
                 const latestVersion = project.current_version || revisions[0]?.version;
                 if (latestVersion) {
                     const assets = await api.getAssets(projectDetails.projectId, latestVersion);
+                    projectDetails.assets = assets; // Store full asset list
                     const assetNames = assets.map(a => a.path).slice(0, 10);
                     if (assetNames.length > 0) {
                         projectDetails.assetsInfo = `Assets include: ${assetNames.join(', ')}`;
