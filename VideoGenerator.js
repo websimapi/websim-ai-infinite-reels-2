@@ -378,7 +378,7 @@ async function fetchWebsimProjectData() {
                                const htmlContent = await htmlRes.text();
                                // Sanitize and truncate for prompt
                                const cleanedHtml = htmlContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '').replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-                               projectDetails.htmlContent = cleanedHtml.substring(0, 1500);
+                               projectDetails.htmlContent = cleanedHtml.substring(0, 3000);
                                console.log("[VideoGenerator] Fetched and processed index.html content.");
                            }
                         } catch(htmlError) {
@@ -400,14 +400,14 @@ async function fetchWebsimProjectData() {
                         return 0;
                     });
 
-                    const codeAssets = sortedAssets.filter(a => codeFileExtensions.some(ext => a.path.endsWith(ext))).slice(0, 3); // limit to 3 other files
+                    const codeAssets = sortedAssets.filter(a => codeFileExtensions.some(ext => a.path.endsWith(ext))).slice(0, 7); // limit to 7 other files
 
                     for (const asset of codeAssets) {
                         try {
                            const res = await fetchWithTimeout(asset.url);
                            if (res.ok) {
                                const content = await res.text();
-                               projectDetails.codeAssets[asset.path] = content.substring(0, 1000); // truncate
+                               projectDetails.codeAssets[asset.path] = content.substring(0, 2500); // truncate
                                console.log(`[VideoGenerator] Fetched content of ${asset.path}.`);
                            }
                         } catch(codeError) {
@@ -493,24 +493,30 @@ ${content}
 
 
         const prompt = `
-Create a compelling short video script for a Websim project. The video must be dynamic, multi-layered, and tell a story about the project's features and creation, using all available context.
+Create a compelling short video script for a Websim project. The video must be dynamic, multi-layered, and tell a story about the project's features and creation, using all available context. Your main goal is to simulate a user's journey through the web application by analyzing its code.
 
 **Project Context:**
 - **Title:** ${projectData.title}
 - **Creator:** @${projectData.creator.username}
 - **Description:** ${projectData.description}
+- **Analyze the attached screenshot of the project to inform your creative choices.**
 ${htmlContext}
 ${codeContext}
 - **Development Insights (AI's thought process):**
   ${projectData.revisionsSummary || "No development insights available."}
 - **Project Assets:**
   ${projectData.assetsInfo || "No asset data available."}
-- **Analyze the attached screenshot of the project to inform your creative choices.**
 ${scrapedImagesInfo}
 ${videoAssetInfo}
 
-**Your Task:**
-Generate a JSON object for a multi-scene video. The JSON object must have the following structure:
+**Your Task: Mentally Navigate and Create a Video Story**
+Analyze the provided HTML, CSS, and JavaScript files to understand the webpage's structure, style, and interactive elements (buttons, forms, animations). Then, generate a JSON object for a multi-scene video that tells a story of a user exploring the page.
+
+For each scene, the 'visualConcept' should be a detailed DALL-E prompt describing a specific view or state of the application as if a user just performed an action. For example:
+- If the HTML has \`<button id="gallery-btn">\`, and the JS has code to show a photo gallery on click, a good 'visualConcept' would be: "A vibrant, full-screen photo gallery modal inside a web application, displaying a grid of 9 stunning landscape photos. The modal has a dark, translucent background."
+- If the code describes a complex data visualization, a 'visualConcept' could be: "A dynamic dashboard UI with glowing neon charts and graphs showing real-time data, with a futuristic cyberpunk aesthetic."
+
+**JSON Structure:**
 {
   "title": "A catchy title for the video (max 50 chars)",
   "description": "A short, engaging description for the video (max 100 chars)",
@@ -518,10 +524,10 @@ Generate a JSON object for a multi-scene video. The JSON object must have the fo
   "scenes": [
     {
       "durationInSeconds": 3,
-      "visualConcept": "A detailed DALL-E prompt for a background image. LEAVE EMPTY IF USING imageUrl or videoUrl.",
+      "visualConcept": "A detailed DALL-E prompt for a background image describing a specific UI state. LEAVE EMPTY IF USING imageUrl or videoUrl.",
       "imageUrl": "URL of an image from 'Project Images'. LEAVE EMPTY IF USING visualConcept or videoUrl.",
       "videoUrl": "URL of the project video. LEAVE EMPTY IF USING visualConcept or imageUrl.",
-      "speech": "A voiceover script for this scene (max 150 chars). This narrates the scene.",
+      "speech": "A voiceover script for this scene (max 150 chars). This narrates the user's action or the feature being shown.",
       "colors": ["an", "array", "of", "2-3", "hex", "colors"],
       "animation": "Background animation. Choose: 'smooth-zoom', 'bouncy-pop', 'dramatic-pan', 'energetic-slide', 'minimal-fade'",
       "style": "Overall scene style. Choose: 'cyberpunk', 'minimal', 'retro', 'corporate', 'artistic'",
@@ -530,8 +536,8 @@ Generate a JSON object for a multi-scene video. The JSON object must have the fo
           "type": "text",
           "content": "Your text here",
           "fontSize": 72,
-          "fontFamily": "default" or "monospace",
-          "fontWeight": "bold" or "normal",
+          "fontFamily": "default or monospace",
+          "fontWeight": "bold or normal",
           "color": "#ffffff",
           "position": {"x": 10, "y": 40},
           "size": {"width": 80},
@@ -547,15 +553,15 @@ Generate a JSON object for a multi-scene video. The JSON object must have the fo
 1.  Create exactly ${scenesPerReel} scenes.
 2.  Each scene MUST have a background: either "visualConcept", "imageUrl", or "videoUrl". Prioritize using the project's video or images when relevant.
 3.  Each scene MUST have at least one layer. Layers are for foreground elements.
-4.  Use the "layers" array to add dynamic text, shapes, or images on top of the background. Be creative with layering to explain features or highlight details.
+4.  Use the "layers" array to add dynamic text, shapes, or images on top of the background. Be creative with layering to explain features or highlight details from the code.
 5.  All properties in the schema are required for each layer (position, size, animation, timing).
 6.  The "speech" for each scene should create a coherent narrative about the project, informed by its title, description, and code content.
 7.  Total video duration should be between ${scenesPerReel * 2.5} and ${scenesPerReel * 5} seconds.
 
 Make the video tell a story. Example flow:
-1.  **Hook:** Use the project video as a background, with a bold text layer asking a question.
-2.  **Showcase:** Use a screenshot or generated image, with text/shape layers pointing out key features mentioned in the code.
-3.  **Creator/CTA:** A final dynamic scene with the project title and creator's name layered on top.
+1.  **Hook:** Use the project video or a compelling generated visual of the landing page. Use a bold text layer asking a question related to the project's purpose.
+2.  **Showcase:** Use a generated image of an inner page or feature (like a gallery, dashboard, or form). Use text/shape layers to point out key features mentioned in the code. The speech should explain what the user is seeing.
+3.  **Creator/CTA:** A final dynamic scene with the project title and creator's name layered on top, perhaps over an interesting abstract visual related to the project's style.
 
 Be creative and make the concept reflect the essence of the project, heavily influenced by all the provided context including the code.`;
 
