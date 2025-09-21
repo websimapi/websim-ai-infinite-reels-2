@@ -178,16 +178,35 @@ const InfiniteReels = () => {
               lineNumber: 161,
               columnNumber: 25
             }),
+            reel.inputProps?.creator && /* @__PURE__ */ jsxDEV("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10, opacity: 0.95 }, children: [
+              /* @__PURE__ */ jsxDEV("img", { src: reel.inputProps.creator.avatar_url || `https://images.websim.com/avatar/${reel.inputProps.creator.username}`, alt: reel.inputProps.creator.username, style: { width: 24, height: 24, borderRadius: "50%" } }, void 0, false, {
+                fileName: "<stdin>",
+                lineNumber: 165,
+                columnNumber: 33
+              }),
+              /* @__PURE__ */ jsxDEV("span", { style: { fontSize: 12, opacity: 0.9 }, children: [
+                "by @",
+                reel.inputProps.creator.username
+              ] }, void 0, true, {
+                fileName: "<stdin>",
+                lineNumber: 166,
+                columnNumber: 33
+              })
+            ] }, void 0, true, {
+              fileName: "<stdin>",
+              lineNumber: 164,
+              columnNumber: 29
+            }),
             /* @__PURE__ */ jsxDEV("div", { className: "reel-tags", children: reel.tags.map((tag, i) => /* @__PURE__ */ jsxDEV("span", { className: "tag", children: [
               "#",
               tag
             ] }, i, true, {
               fileName: "<stdin>",
-              lineNumber: 164,
+              lineNumber: 171,
               columnNumber: 33
             })) }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 162,
+              lineNumber: 169,
               columnNumber: 25
             })
           ] }, void 0, true, {
@@ -198,22 +217,22 @@ const InfiniteReels = () => {
           /* @__PURE__ */ jsxDEV("div", { className: "controls-overlay", children: [
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Like", children: "\u2764\uFE0F" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 170,
+              lineNumber: 177,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Share", children: "\u{1F4E4}" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 171,
+              lineNumber: 178,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Save", children: "\u{1F516}" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 172,
+              lineNumber: 179,
               columnNumber: 25
             })
           ] }, void 0, true, {
             fileName: "<stdin>",
-            lineNumber: 169,
+            lineNumber: 176,
             columnNumber: 21
           })
         ] }, void 0, true, {
@@ -243,33 +262,33 @@ const InfiniteReels = () => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 182,
+        lineNumber: 189,
         columnNumber: 17
       }
     )),
     loading && /* @__PURE__ */ jsxDEV("div", { className: "reel-item", children: /* @__PURE__ */ jsxDEV("div", { className: "reel-content loading-reel", children: [
       /* @__PURE__ */ jsxDEV("div", { className: "loading-spinner" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 193,
+        lineNumber: 200,
         columnNumber: 25
       }),
       /* @__PURE__ */ jsxDEV("div", { className: "loading-text", children: "AI is creating your next reel..." }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 194,
+        lineNumber: 201,
         columnNumber: 25
       })
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 192,
+      lineNumber: 199,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 191,
+      lineNumber: 198,
       columnNumber: 17
     })
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 180,
+    lineNumber: 187,
     columnNumber: 9
   });
 };

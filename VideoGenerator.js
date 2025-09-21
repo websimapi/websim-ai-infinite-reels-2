@@ -36,41 +36,41 @@ export async function generateVideoContent() {
 
 async function fetchWebsimProjectData() {
     try {
-        // First try to get current user for API calls
-        const user = await window.websim.getUser();
-        
-        if (user) {
-            // Fetch user's following to get recent projects
-            const response = await fetch(`/api/v1/users/${user.username}/following`);
-            const followingData = await response.json();
-            
-            if (followingData.following && followingData.following.data.length > 0) {
-                // Get a random followed user's projects
-                const randomFollow = followingData.following.data[Math.floor(Math.random() * followingData.following.data.length)];
-                const followedUser = randomFollow.follow;
-                
-                // Fetch that user's projects
-                const projectsResponse = await fetch(`/api/v1/users/${followedUser.username}/projects`);
-                const projectsData = await projectsResponse.json();
-                
-                if (projectsData.projects && projectsData.projects.data.length > 0) {
-                    const randomProject = projectsData.projects.data[Math.floor(Math.random() * projectsData.projects.data.length)];
-                    
-                    return {
-                        title: randomProject.title,
-                        description: randomProject.description,
-                        creator: {
-                            username: followedUser.username,
-                            avatar_url: followedUser.avatar_url,
-                            id: followedUser.id
-                        },
-                        projectId: randomProject.id,
-                        category: 'websim-project'
-                    };
-                }
+        const res = await fetch("https://api.websim.com/api/v1/feed/trending?limit=24&offset=0&feed=hot_desktop&range=all");
+        const data = await res.json();
+        const items = data?.feed?.data || [];
+        if (!items.length) throw new Error("No trending items");
+        const item = items[Math.floor(Math.random() * items.length)];
+        const site = item.site || {};
+        const project = item.project || {};
+        const owner = site.owner || project.created_by || {};
+        const link = site.versioned_link_url || site.link_url || project.versioned_link_url || project.link_url || "";
+        const pageUrl = link ? `https://websim.com${link}` : "";
+        let codeHtml = "";
+        try {
+            if (pageUrl) {
+                const pageRes = await fetch(pageUrl, { mode: "cors" });
+                codeHtml = await pageRes.text();
+                codeHtml = codeHtml.slice(0, 4000);
             }
-        }
-        
+        } catch (e) { /* swallow code fetch errors */ }
+        return {
+            title: project.title || site.title || "Untitled",
+            description: project.description || "",
+            creator: {
+                username: owner.username || "unknown",
+                avatar_url: owner.avatar_url || null,
+                id: owner.id || "unknown"
+            },
+            projectId: project.id || site.id,
+            category: "trending",
+            pageUrl,
+            thumbnail: project.thumbnail?.url || item.site?.thumbnail?.url || null,
+            videoUrl: project.video?.url || null,
+            codeHtml
+        };
+    } catch (error) {
+        console.log("Trending fetch failed, using fallback:", error);
         // Fallback: try to get current project
         const currentProject = await window.websim.getCurrentProject();
         const creator = await window.websim.getCreator();
@@ -98,41 +98,43 @@ async function fetchWebsimProjectData() {
             avatar_url: null,
             id: "websim"
         },
-        category: "technology"
+        category: "technology",
+        pageUrl: "",
+        thumbnail: null,
+        videoUrl: null,
+        codeHtml: ""
     };
 }
 
 async function generateAIConcept(projectData) {
     try {
-        const prompt = `Create a short video concept based on this Websim project:
+        const prompt = `Create a short video concept about this Websim project using its metadata and page HTML.
 Title: ${projectData.title}
 Description: ${projectData.description}
 Creator: ${projectData.creator.username}
 Category: ${projectData.category}
+URL: ${projectData.pageUrl}
+Thumbnail: ${projectData.thumbnail || "none"}
+Video: ${projectData.videoUrl || "none"}
 
-Generate a JSON response with:
-- title: catchy video title referencing the project (max 50 chars)
-- description: brief description about the project (max 100 chars)  
-- tags: array of 3-5 relevant hashtags related to the project
-- visualConcept: description of visual elements inspired by the project
-- colors: array of 2-3 hex colors that match the project theme
-- animation: animation style (smooth, bouncy, dramatic, etc)
-- text: main text to display in video (project title or related)
-- style: visual style (minimal, cyberpunk, retro, etc) that fits the project`;
+PAGE_HTML_SNIPPET_START
+${projectData.codeHtml || ""}
+PAGE_HTML_SNIPPET_END
 
-        const completion = await window.websim.chatCompletion({
-            messages: [
-                {
-                    role: "user",
-                    content: [{
-                        type: "text",
-                        text: prompt
-                    }]
-                }
-            ],
-            json: true
+Respond with JSON:
+- title (<=50 chars)
+- description (<=100 chars)
+- tags (3-5 hashtags, no # symbol in values)
+- visualConcept
+- colors (2-3 hex)
+- animation
+- text
+- style`;
+
+        const completion = await websim.chat.completions.create({
+            messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
+            json: true,
         });
-
         return JSON.parse(completion.content);
     } catch (error) {
         console.error("AI concept generation failed:", error);
