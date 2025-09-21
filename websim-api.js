@@ -49,12 +49,12 @@ export async function getAllProjectRevisions(projectId) {
 
         const response = await getProjectRevisions(projectId, params);
         
-        if (response.data) {
-            allRevisions = allRevisions.concat(response.data);
+        if (response.revisions && response.revisions.data) {
+            allRevisions = allRevisions.concat(response.revisions.data);
         }
         
-        hasNextPage = response.meta?.has_next_page || false;
-        afterCursor = response.meta?.end_cursor;
+        hasNextPage = response.revisions?.meta?.has_next_page || false;
+        afterCursor = response.revisions?.meta?.end_cursor;
 
         // Safety break if there's no cursor to advance or if we have enough data
         if (!afterCursor || allRevisions.length >= 200) {
@@ -76,4 +76,3 @@ export function getAssets(projectId, version) {
 export async function getUser(username) {
     return makeRequest(`/users/${username}`);
 }
-

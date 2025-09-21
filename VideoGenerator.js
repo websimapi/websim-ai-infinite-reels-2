@@ -58,10 +58,21 @@ export async function generateVideoContent() {
     }
 }
 
+async function fetchWithTimeout(resource, options = {}, timeout = 8000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    const response = await fetch(resource, {
+        ...options,
+        signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+}
+
 async function fetchWebsimProjectData() {
     let projectDetails = {};
     try {
-        const res = await fetch("https://api.websim.com/api/v1/feed/trending?limit=24&offset=0&feed=hot_desktop&range=all");
+        const res = await fetchWithTimeout("https://api.websim.com/api/v1/feed/trending?limit=24&offset=0&feed=hot_desktop&range=all");
         if (!res.ok) throw new Error(`Trending fetch failed with status ${res.status}`);
         const data = await res.json();
         const items = data?.feed?.data || [];
@@ -74,21 +85,6 @@ async function fetchWebsimProjectData() {
         const link = site.versioned_link_url || site.link_url || project.versioned_link_url || project.link_url || "";
         const pageUrl = link ? `https://websim.com${link}` : "";
 
-        let codeHtml = "";
-        try {
-            if (pageUrl) {
-                // Fetching project page HTML can be slow and flaky, let's add a timeout
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3000);
-                const pageRes = await fetch(pageUrl, { signal: controller.signal, mode: 'no-cors' }); // Using no-cors to avoid CORS issues, we can't read the body but the request is made. Let's rely on API data.
-                clearTimeout(timeoutId);
-                // codeHtml = await pageRes.text();
-                // codeHtml = codeHtml.slice(0, 4000);
-            }
-        } catch (e) {
-            console.warn("Could not fetch page HTML:", e.message);
-        }
-        
         projectDetails = {
             title: project.title || site.title || "Untitled",
             description: project.description || site.yapping?.split('\n')[0] || "",
@@ -101,8 +97,7 @@ async function fetchWebsimProjectData() {
             category: "trending",
             pageUrl,
             thumbnail: project.thumbnail?.url || null,
-            videoUrl: project.video?.url || null,
-            codeHtml
+            videoUrl: project.video?.url || null
         };
 
         // Fetch more details if we have a project ID
