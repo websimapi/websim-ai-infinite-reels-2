@@ -97,7 +97,7 @@ const Layer = ({ layer, sceneColors }) => {
       return null;
   }
 };
-const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
+const Scene = ({ scene, isFirstScene, creator, projectTitle, recordedVideoUrl }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const {
@@ -112,7 +112,8 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
     imageUrl,
     audioUrl,
     videoUrl,
-    // New video property
+    videoClip,
+    // New clip property
     layers = []
     // New layers array
   } = scene;
@@ -167,13 +168,14 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
     OffthreadVideo,
     {
       src: videoUrl,
-      style: { width: "100%", height: "100%", objectFit: "cover", ...animationStyles.media }
+      style: { width: "100%", height: "100%", objectFit: "cover", ...animationStyles.media },
+      startFrom: videoClip ? Math.floor(videoClip.start * fps) : 0
     },
     void 0,
     false,
     {
       fileName: "<stdin>",
-      lineNumber: 181,
+      lineNumber: 182,
       columnNumber: 9
     }
   ) : imageUrl ? /* @__PURE__ */ jsxDEV(
@@ -191,7 +193,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
     false,
     {
       fileName: "<stdin>",
-      lineNumber: 186,
+      lineNumber: 188,
       columnNumber: 9
     }
   ) : /* @__PURE__ */ jsxDEV(
@@ -212,7 +214,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
         fontFamily: "'Poppins', sans-serif"
       }, children: visualConcept || "Loading visual..." }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 203,
+        lineNumber: 205,
         columnNumber: 13
       })
     },
@@ -220,26 +222,26 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
     false,
     {
       fileName: "<stdin>",
-      lineNumber: 196,
+      lineNumber: 198,
       columnNumber: 10
     }
   );
   return /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { background: getBackground(), opacity: sceneOpacity, fontFamily: "'Poppins', sans-serif" }, children: [
     audioUrl && /* @__PURE__ */ jsxDEV(Audio, { src: audioUrl }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 220,
+      lineNumber: 222,
       columnNumber: 26
     }),
     /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { opacity: 1 }, children: [
       backgroundMedia,
       /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { backgroundColor: "rgba(0,0,0,0.3)" } }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 225,
+        lineNumber: 227,
         columnNumber: 17
       })
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 223,
+      lineNumber: 225,
       columnNumber: 13
     }),
     isFirstScene && creator && /* @__PURE__ */ jsxDEV(
@@ -283,7 +285,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
                 false,
                 {
                   fileName: "<stdin>",
-                  lineNumber: 251,
+                  lineNumber: 253,
                   columnNumber: 25
                 }
               ),
@@ -306,7 +308,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
                   true,
                   {
                     fileName: "<stdin>",
-                    lineNumber: 263,
+                    lineNumber: 265,
                     columnNumber: 29
                   }
                 ),
@@ -324,13 +326,13 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
                   false,
                   {
                     fileName: "<stdin>",
-                    lineNumber: 273,
+                    lineNumber: 275,
                     columnNumber: 29
                   }
                 )
               ] }, void 0, true, {
                 fileName: "<stdin>",
-                lineNumber: 262,
+                lineNumber: 264,
                 columnNumber: 25
               })
             ]
@@ -339,7 +341,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
           true,
           {
             fileName: "<stdin>",
-            lineNumber: 238,
+            lineNumber: 240,
             columnNumber: 21
           }
         )
@@ -348,17 +350,17 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 230,
+        lineNumber: 232,
         columnNumber: 17
       }
     ),
     /* @__PURE__ */ jsxDEV(AbsoluteFill, { children: layers.map((layer, i) => /* @__PURE__ */ jsxDEV(Layer, { layer, sceneColors: colors }, i, false, {
       fileName: "<stdin>",
-      lineNumber: 313,
+      lineNumber: 315,
       columnNumber: 21
     })) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 311,
+      lineNumber: 313,
       columnNumber: 13
     }),
     text && layers.length === 0 && /* @__PURE__ */ jsxDEV(
@@ -388,7 +390,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
           false,
           {
             fileName: "<stdin>",
-            lineNumber: 325,
+            lineNumber: 327,
             columnNumber: 21
           }
         )
@@ -397,26 +399,26 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 319,
+        lineNumber: 321,
         columnNumber: 18
       }
     )
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 218,
+    lineNumber: 220,
     columnNumber: 9
   });
 };
-const AIVideoComposition = ({ scenes, creator, projectTitle }) => {
+const AIVideoComposition = ({ scenes, creator, projectTitle, recordedVideoUrl }) => {
   const { fps } = useVideoConfig();
   if (!scenes || scenes.length === 0) {
     return /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { background: "#111", justifyContent: "center", alignItems: "center" }, children: /* @__PURE__ */ jsxDEV("h1", { style: { color: "white", fontSize: 48 }, children: "Loading Scene..." }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 352,
+      lineNumber: 354,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 351,
+      lineNumber: 353,
       columnNumber: 13
     });
   }
@@ -430,13 +432,14 @@ const AIVideoComposition = ({ scenes, creator, projectTitle }) => {
           scene,
           isFirstScene: index === 0,
           creator,
-          projectTitle
+          projectTitle,
+          recordedVideoUrl
         },
         void 0,
         false,
         {
           fileName: "<stdin>",
-          lineNumber: 365,
+          lineNumber: 367,
           columnNumber: 25
         }
       )
@@ -445,16 +448,16 @@ const AIVideoComposition = ({ scenes, creator, projectTitle }) => {
     false,
     {
       fileName: "<stdin>",
-      lineNumber: 361,
+      lineNumber: 363,
       columnNumber: 21
     }
   )) }, void 0, false, {
     fileName: "<stdin>",
-    lineNumber: 359,
+    lineNumber: 361,
     columnNumber: 13
   }) }, void 0, false, {
     fileName: "<stdin>",
-    lineNumber: 358,
+    lineNumber: 360,
     columnNumber: 9
   });
 };

@@ -136,7 +136,7 @@ async function urlToDataUrl(url) {
 }
 
 // AI-powered video content generator using Websim metadata
-export async function generateVideoContent(updateStatus, scenesPerReel = 3, reelIndex = 0) {
+export async function generateVideoContent(updateStatus, scenesPerReel = 3, reelIndex = 0, recordedVideoUrl = null) {
     const reelId = `Reel-${reelIndex + 1}`;
     try {
         updateStatus(`${reelId}: Fetching project data...`);
@@ -148,7 +148,7 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3, reel
         
         updateStatus(`${reelId}: Designing scenes with AI...`);
         console.log(`[VideoGenerator] ${reelId}: Generating AI concept script...`);
-        const script = await generateAIConcept(projectData, scenesPerReel);
+        const script = await generateAIConcept(projectData, scenesPerReel, recordedVideoUrl);
         console.log(`[VideoGenerator] ${reelId}: Generated AI script for "${script.title}"`);
         
         if (!script || !script.scenes || script.scenes.length === 0) {
@@ -238,21 +238,37 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3, reel
                         const duration = await getAudioDuration(scene.audioUrl);
                         console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Audio duration is ${duration.toFixed(2)}s.`);
                         // Set scene duration to audio duration + a small buffer for transition
-                        scene.durationInSeconds = duration + 0.5;
+                        const aiDuration = scene.durationInSeconds;
+                        const clipDuration = scene.videoClip?.duration;
+
+                        if (clipDuration) {
+                            scene.durationInSeconds = clipDuration;
+                            console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Duration set to video clip duration: ${clipDuration.toFixed(2)}s.`);
+                        } else {
+                             try {
+                                updateStatus(`${reelId} (Scene ${sceneNum}/${script.scenes.length}): Analyzing voiceover...`);
+                                const duration = await getAudioDuration(scene.audioUrl);
+                                console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Audio duration is ${duration.toFixed(2)}s.`);
+                                scene.durationInSeconds = duration + 0.5; // Audio + buffer
+                             } catch (durationError) {
+                                console.warn(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Could not get audio duration. Using AI-provided duration.`, durationError);
+                                scene.durationInSeconds = aiDuration || 3;
+                             }
+                        }
+
                     } catch (durationError) {
                         console.warn(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Could not get audio duration. Using AI-provided duration.`, durationError);
-                        // Fallback to AI provided duration or a default
-                        scene.durationInSeconds = scene.durationInSeconds || 3;
+                        scene.durationInSeconds = aiDuration || 3;
                     }
 
                  } catch(audioError) {
                     console.error(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Audio generation failed.`, audioError);
                     scene.audioUrl = null; // Ensure it's null on failure
-                    scene.durationInSeconds = scene.durationInSeconds || 3;
-                 }
+                    scene.durationInSeconds = scene.videoClip?.duration || scene.durationInSeconds || 3;
+                }
             } else {
-                // If no speech, use the duration provided by the AI, or default to 3 seconds.
-                scene.durationInSeconds = scene.durationInSeconds || 3;
+                // If no speech, use clip duration, AI duration, or default to 3 seconds.
+                scene.durationInSeconds = scene.videoClip?.duration || scene.durationInSeconds || 3;
             }
             updatedScenes.push(scene);
             console.log(`[VideoGenerator] ${reelId}: Completed asset generation for Scene ${sceneNum}.`);
@@ -277,7 +293,8 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3, reel
             inputProps: {
                 scenes: script.scenes,
                 creator: projectData.creator,
-                projectTitle: projectData.title
+                projectTitle: projectData.title,
+                recordedVideoUrl: recordedVideoUrl, // Pass this to composition
             }
         };
         
@@ -453,7 +470,7 @@ async function fetchWebsimProjectData() {
     }
 }
 
-async function generateAIConcept(projectData, scenesPerReel) {
+async function generateAIConcept(projectData, scenesPerReel, recordedVideoUrl) {
     try {
         const scrapedImagesInfo = (projectData.scrapedImages && projectData.scrapedImages.length > 0)
             ? `
@@ -462,6 +479,14 @@ You can use these image URLs directly as the main background visual or in a laye
 - ${projectData.scrapedImages.join('\n- ')}
 `
             : "**No project images were found.** You must generate a 'visualConcept' for every scene's background.";
+
+        const interactionVideoInfo = recordedVideoUrl
+            ? `
+**User Interaction Video Available:**
+A video of a user interacting with the project is available at this URL: ${recordedVideoUrl}
+You can use clips from this video as a scene's background. To do this, set "videoUrl" to this URL, and specify the "videoClip" object. A mix of interaction clips and generated images is highly encouraged.
+`
+            : "";
 
         const videoAssetInfo = projectData.videoUrl 
             ? `
@@ -493,7 +518,7 @@ ${content}
 
 
         const prompt = `
-Create a compelling short video script for a Websim project. The video must be dynamic, multi-layered, and tell a story about the project's features and creation, using all available context. Your main goal is to simulate a user's journey through the web application by analyzing its code.
+Create a compelling short video script for a Websim project. The video must be dynamic, multi-layered, and tell a story about the project's features and creation, using all available context. Your main goal is to simulate a user's journey through the web application by analyzing its code and the provided user interaction video.
 
 **Project Context:**
 - **Title:** ${projectData.title}
@@ -507,14 +532,14 @@ ${codeContext}
 - **Project Assets:**
   ${projectData.assetsInfo || "No asset data available."}
 ${scrapedImagesInfo}
+${interactionVideoInfo}
 ${videoAssetInfo}
 
-**Your Task: Mentally Navigate and Create a Video Story**
-Analyze the provided HTML, CSS, and JavaScript files to understand the webpage's structure, style, and interactive elements (buttons, forms, animations). Then, generate a JSON object for a multi-scene video that tells a story of a user exploring the page.
+**Your Task: Analyze Interaction & Create a Video Story**
+Analyze the provided user interaction video, HTML, CSS, and JavaScript files to understand the webpage's structure, style, and interactive elements. Then, generate a JSON object for a multi-scene video that tells a story of a user exploring the page.
 
-For each scene, the 'visualConcept' should be a detailed DALL-E prompt describing a specific view or state of the application as if a user just performed an action. For example:
-- If the HTML has \`<button id="gallery-btn">\`, and the JS has code to show a photo gallery on click, a good 'visualConcept' would be: "A vibrant, full-screen photo gallery modal inside a web application, displaying a grid of 9 stunning landscape photos. The modal has a dark, translucent background."
-- If the code describes a complex data visualization, a 'visualConcept' could be: "A dynamic dashboard UI with glowing neon charts and graphs showing real-time data, with a futuristic cyberpunk aesthetic."
+**Using the Interaction Video:**
+When you use a clip from the user interaction video, set the scene's "videoUrl" to the provided interaction video URL. Then, you MUST define the "videoClip" object with a "start" time (in seconds) and a "duration" (in seconds). This will create a dynamic scene showing actual usage. For these scenes, "visualConcept" and "imageUrl" should be empty.
 
 **JSON Structure:**
 {
@@ -524,9 +549,10 @@ For each scene, the 'visualConcept' should be a detailed DALL-E prompt describin
   "scenes": [
     {
       "durationInSeconds": 3,
-      "visualConcept": "A detailed DALL-E prompt for a background image describing a specific UI state. LEAVE EMPTY IF USING imageUrl or videoUrl.",
+      "visualConcept": "A detailed DALL-E prompt for a background image. LEAVE EMPTY IF USING imageUrl or videoUrl.",
       "imageUrl": "URL of an image from 'Project Images'. LEAVE EMPTY IF USING visualConcept or videoUrl.",
-      "videoUrl": "URL of the project video. LEAVE EMPTY IF USING visualConcept or imageUrl.",
+      "videoUrl": "URL of the interaction video or project video. If using the interaction video, you MUST specify videoClip.",
+      "videoClip": { "start": 10.5, "duration": 4.0 },
       "speech": "A voiceover script for this scene (max 150 chars). This narrates the user's action or the feature being shown.",
       "colors": ["an", "array", "of", "2-3", "hex", "colors"],
       "animation": "Background animation. Choose: 'smooth-zoom', 'bouncy-pop', 'dramatic-pan', 'energetic-slide', 'minimal-fade'",
@@ -551,19 +577,19 @@ For each scene, the 'visualConcept' should be a detailed DALL-E prompt describin
 
 **Instructions & Rules:**
 1.  Create exactly ${scenesPerReel} scenes.
-2.  Each scene MUST have a background: either "visualConcept", "imageUrl", or "videoUrl". Prioritize using the project's video or images when relevant.
-3.  Each scene MUST have at least one layer. Layers are for foreground elements.
-4.  Use the "layers" array to add dynamic text, shapes, or images on top of the background. Be creative with layering to explain features or highlight details from the code.
-5.  All properties in the schema are required for each layer (position, size, animation, timing).
-6.  The "speech" for each scene should create a coherent narrative about the project, informed by its title, description, and code content.
+2.  Each scene MUST have a background: either "visualConcept", "imageUrl", or "videoUrl". Prioritize using clips from the user interaction video.
+3.  When using the interaction video, you MUST define "videoClip" with "start" and "duration", and set "durationInSeconds" to be equal to "videoClip.duration".
+4.  Each scene MUST have at least one layer. Layers are for foreground elements.
+5.  Use the "layers" array to add dynamic text, shapes, or images on top of the background.
+6.  The "speech" for each scene should create a coherent narrative.
 7.  Total video duration should be between ${scenesPerReel * 2.5} and ${scenesPerReel * 5} seconds.
 
 Make the video tell a story. Example flow:
-1.  **Hook:** Use the project video or a compelling generated visual of the landing page. Use a bold text layer asking a question related to the project's purpose.
-2.  **Showcase:** Use a generated image of an inner page or feature (like a gallery, dashboard, or form). Use text/shape layers to point out key features mentioned in the code. The speech should explain what the user is seeing.
-3.  **Creator/CTA:** A final dynamic scene with the project title and creator's name layered on top, perhaps over an interesting abstract visual related to the project's style.
+1.  **Hook:** Use a dynamic, short clip from the interaction video showing an engaging moment.
+2.  **Showcase:** Use another clip or a generated image to highlight a specific feature.
+3.  **Creator/CTA:** A final dynamic scene with the project title and creator's name.
 
-Be creative and make the concept reflect the essence of the project, heavily influenced by all the provided context including the code.`;
+Be creative and make the concept reflect the essence of the project, heavily influenced by all the provided context including the code and user recording.`;
 
         const messages = [{
             role: "user",

@@ -2,7 +2,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Player } from "@websim/remotion/player";
 import { AIVideoComposition } from "./composition.jsx";
-import { generateVideoContent } from "./VideoGenerator.js";
+import { generateVideoContent, fetchWebsimProjectData } from "./VideoGenerator.js";
 const Settings = ({ onStart }) => {
   const [scenes, setScenes] = useState(3);
   const [initialReels, setInitialReels] = useState(2);
@@ -130,6 +130,117 @@ const Settings = ({ onStart }) => {
     columnNumber: 9
   });
 };
+const InteractionScreen = ({ onRecordingComplete, projectUrl }) => {
+  const [isRecording, setIsRecording] = useState(false);
+  const [status, setStatus] = useState("Ready to record");
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+  const startRecording = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      setStatus("Screen recording is not supported in your browser.");
+      return;
+    }
+    try {
+      setStatus("Waiting for screen share permission...");
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { mediaSource: "tab" },
+        audio: false
+      });
+      stream.getVideoTracks()[0].onended = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+          stopRecording();
+        }
+      };
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: "video/webm" });
+      recordedChunksRef.current = [];
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+      mediaRecorderRef.current.onstop = async () => {
+        setStatus("Processing recording...");
+        const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
+        const file = new File([blob], "recording.webm", { type: "video/webm" });
+        try {
+          const url = await websim.upload(file);
+          setStatus("Recording uploaded!");
+          onRecordingComplete(url);
+        } catch (error) {
+          console.error("Upload failed:", error);
+          setStatus("Error uploading recording. Please try again.");
+        }
+        stream.getTracks().forEach((track) => track.stop());
+      };
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+      setStatus("Recording... Interact with the page below.");
+    } catch (err) {
+      console.error("Error starting recording:", err);
+      setStatus("Could not start recording. Please grant permission and select this tab.");
+    }
+  };
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setStatus("Stopping recording...");
+    }
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "interaction-container", children: [
+    /* @__PURE__ */ jsxDEV("h1", { className: "reel-title", style: { fontSize: "32px", marginBottom: "10px" }, children: "Record Your Interaction" }, void 0, false, {
+      fileName: "<stdin>",
+      lineNumber: 134,
+      columnNumber: 13
+    }),
+    /* @__PURE__ */ jsxDEV("p", { className: "reel-description", style: { maxWidth: "600px", marginBottom: "20px" }, children: "Click 'Start Recording', choose this browser tab, then interact with the project below. Click 'Stop' when you're done to generate reels based on your actions." }, void 0, false, {
+      fileName: "<stdin>",
+      lineNumber: 135,
+      columnNumber: 13
+    }),
+    /* @__PURE__ */ jsxDEV("div", { className: "recording-controls", children: [
+      /* @__PURE__ */ jsxDEV("button", { onClick: startRecording, disabled: isRecording, className: "start-button", children: "Start Recording" }, void 0, false, {
+        fileName: "<stdin>",
+        lineNumber: 139,
+        columnNumber: 17
+      }),
+      /* @__PURE__ */ jsxDEV("button", { onClick: stopRecording, disabled: !isRecording, className: "start-button", style: { background: "linear-gradient(45deg, #ff6b6b, #f06595)" }, children: "Stop & Generate" }, void 0, false, {
+        fileName: "<stdin>",
+        lineNumber: 142,
+        columnNumber: 17
+      })
+    ] }, void 0, true, {
+      fileName: "<stdin>",
+      lineNumber: 138,
+      columnNumber: 13
+    }),
+    /* @__PURE__ */ jsxDEV("p", { className: "status-text", children: [
+      "Status: ",
+      status
+    ] }, void 0, true, {
+      fileName: "<stdin>",
+      lineNumber: 146,
+      columnNumber: 13
+    }),
+    /* @__PURE__ */ jsxDEV("div", { className: "iframe-wrapper", children: projectUrl ? /* @__PURE__ */ jsxDEV("iframe", { src: projectUrl, title: "Project Interaction", sandbox: "allow-scripts allow-same-origin allow-popups allow-forms" }, void 0, false, {
+      fileName: "<stdin>",
+      lineNumber: 149,
+      columnNumber: 21
+    }) : /* @__PURE__ */ jsxDEV("div", { className: "loading-spinner" }, void 0, false, {
+      fileName: "<stdin>",
+      lineNumber: 151,
+      columnNumber: 21
+    }) }, void 0, false, {
+      fileName: "<stdin>",
+      lineNumber: 147,
+      columnNumber: 13
+    })
+  ] }, void 0, true, {
+    fileName: "<stdin>",
+    lineNumber: 133,
+    columnNumber: 9
+  });
+};
 const InfiniteReels = () => {
   const [appState, setAppState] = useState("settings");
   const [settings, setSettings] = useState({
@@ -137,6 +248,8 @@ const InfiniteReels = () => {
     initialReels: 2,
     infiniteScrollMode: "auto"
   });
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState(null);
+  const [projectUrl, setProjectUrl] = useState(null);
   const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("AI is creating your next reel...");
@@ -145,12 +258,28 @@ const InfiniteReels = () => {
   const observerRef = useRef(null);
   const generationLock = useRef(false);
   const timeoutRef = useRef(null);
-  const handleStart = (newSettings) => {
+  const handleStart = async (newSettings) => {
     setSettings({
       scenesPerReel: newSettings.scenes,
       initialReels: newSettings.initialReels,
       infiniteScrollMode: newSettings.infiniteScroll
     });
+    try {
+      setLoadingStatus("Fetching project to interact with...");
+      setAppState("interaction");
+      const projectData = await fetchWebsimProjectData();
+      if (projectData && projectData.pageUrl) {
+        setProjectUrl(projectData.pageUrl);
+      } else {
+        console.error("Could not fetch a project URL for interaction.");
+        setProjectUrl(null);
+      }
+    } catch (error) {
+      console.error("Failed to fetch project data for interaction:", error);
+    }
+  };
+  const handleRecordingComplete = (videoUrl) => {
+    setRecordedVideoUrl(videoUrl);
     setAppState("reels");
   };
   const updateStatus = (message) => {
@@ -173,7 +302,7 @@ const InfiniteReels = () => {
       updateStatus("Generation timed out. Please try again.");
     }, 9e4);
     try {
-      const content = await generateVideoContent(updateStatus, settings.scenesPerReel, reels.length);
+      const content = await generateVideoContent(updateStatus, settings.scenesPerReel, reels.length, recordedVideoUrl);
       if (!content) {
         throw new Error("Content generation returned null or undefined.");
       }
@@ -198,7 +327,7 @@ const InfiniteReels = () => {
       setLoading(false);
       generationLock.current = false;
     }
-  }, [settings.scenesPerReel, reels.length]);
+  }, [settings.scenesPerReel, reels.length, recordedVideoUrl]);
   const loadInitialReels = useCallback(async () => {
     if (reels.length > 0 || generationLock.current) return;
     console.log(`[InfiniteReels] Loading ${settings.initialReels} initial reels sequentially...`);
@@ -208,7 +337,7 @@ const InfiniteReels = () => {
     for (let i = 0; i < settings.initialReels; i++) {
       try {
         updateStatus(`Generating Reel ${i + 1} of ${settings.initialReels}...`);
-        const content = await generateVideoContent(updateStatus, settings.scenesPerReel, i);
+        const content = await generateVideoContent(updateStatus, settings.scenesPerReel, i, recordedVideoUrl);
         if (content) {
           initialReelsContent.push({
             id: Date.now() + i,
@@ -227,12 +356,12 @@ const InfiniteReels = () => {
     console.log("[InfiniteReels] Initial reels loaded:", initialReelsContent);
     setLoading(false);
     generationLock.current = false;
-  }, [reels.length, settings.initialReels, settings.scenesPerReel]);
+  }, [reels.length, settings.initialReels, settings.scenesPerReel, recordedVideoUrl]);
   useEffect(() => {
-    if (appState === "reels") {
+    if (appState === "reels" && recordedVideoUrl) {
       loadInitialReels();
     }
-  }, [appState, loadInitialReels]);
+  }, [appState, recordedVideoUrl, loadInitialReels]);
   useEffect(() => {
     if (appState !== "reels") return;
     const container = containerRef.current;
@@ -288,7 +417,7 @@ const InfiniteReels = () => {
               playerError
             ] }, void 0, true, {
               fileName: "<stdin>",
-              lineNumber: 251,
+              lineNumber: 364,
               columnNumber: 33
             }),
             /* @__PURE__ */ jsxDEV("div", { style: { fontSize: "12px", marginTop: "10px" }, children: [
@@ -296,12 +425,12 @@ const InfiniteReels = () => {
               JSON.stringify(reel, null, 2)
             ] }, void 0, true, {
               fileName: "<stdin>",
-              lineNumber: 252,
+              lineNumber: 365,
               columnNumber: 33
             })
           ] }, void 0, true, {
             fileName: "<stdin>",
-            lineNumber: 241,
+            lineNumber: 354,
             columnNumber: 29
           }) : /* @__PURE__ */ jsxDEV(
             Player,
@@ -333,39 +462,39 @@ const InfiniteReels = () => {
             false,
             {
               fileName: "<stdin>",
-              lineNumber: 257,
+              lineNumber: 370,
               columnNumber: 29
             }
           ) }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 239,
+            lineNumber: 352,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "reel-overlay" }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 284,
+            lineNumber: 397,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "progress-bar", style: { width: `${videoProgress}%` } }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 286,
+            lineNumber: 399,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "reel-metadata", children: [
             /* @__PURE__ */ jsxDEV("div", { className: "reel-title", children: reel.title }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 289,
+              lineNumber: 402,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "reel-description", children: reel.description }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 290,
+              lineNumber: 403,
               columnNumber: 25
             }),
             reel.inputProps?.creator && /* @__PURE__ */ jsxDEV("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10, opacity: 0.95 }, children: [
               /* @__PURE__ */ jsxDEV("img", { src: reel.inputProps.creator.avatar_url || `https://images.websim.com/avatar/${reel.inputProps.creator.username}`, alt: reel.inputProps.creator.username, style: { width: 24, height: 24, borderRadius: "50%" } }, void 0, false, {
                 fileName: "<stdin>",
-                lineNumber: 294,
+                lineNumber: 407,
                 columnNumber: 33
               }),
               /* @__PURE__ */ jsxDEV("span", { style: { fontSize: 12, opacity: 0.9 }, children: [
@@ -373,12 +502,12 @@ const InfiniteReels = () => {
                 reel.inputProps.creator.username
               ] }, void 0, true, {
                 fileName: "<stdin>",
-                lineNumber: 295,
+                lineNumber: 408,
                 columnNumber: 33
               })
             ] }, void 0, true, {
               fileName: "<stdin>",
-              lineNumber: 293,
+              lineNumber: 406,
               columnNumber: 29
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "reel-tags", children: reel.tags.map((tag, i) => /* @__PURE__ */ jsxDEV("span", { className: "tag", children: [
@@ -386,42 +515,42 @@ const InfiniteReels = () => {
               tag
             ] }, i, true, {
               fileName: "<stdin>",
-              lineNumber: 300,
+              lineNumber: 413,
               columnNumber: 33
             })) }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 298,
+              lineNumber: 411,
               columnNumber: 25
             })
           ] }, void 0, true, {
             fileName: "<stdin>",
-            lineNumber: 288,
+            lineNumber: 401,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "controls-overlay", children: [
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Like", children: "\u2764\uFE0F" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 306,
+              lineNumber: 419,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Remix", children: "\u{1F504}" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 307,
+              lineNumber: 420,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Share", children: "\u{1F4E4}" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 308,
+              lineNumber: 421,
               columnNumber: 25
             })
           ] }, void 0, true, {
             fileName: "<stdin>",
-            lineNumber: 305,
+            lineNumber: 418,
             columnNumber: 21
           })
         ] }, void 0, true, {
           fileName: "<stdin>",
-          lineNumber: 238,
+          lineNumber: 351,
           columnNumber: 17
         })
       },
@@ -429,7 +558,7 @@ const InfiniteReels = () => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 234,
+        lineNumber: 347,
         columnNumber: 13
       }
     );
@@ -437,7 +566,14 @@ const InfiniteReels = () => {
   if (appState === "settings") {
     return /* @__PURE__ */ jsxDEV(Settings, { onStart: handleStart }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 316,
+      lineNumber: 429,
+      columnNumber: 16
+    });
+  }
+  if (appState === "interaction") {
+    return /* @__PURE__ */ jsxDEV(InteractionScreen, { onRecordingComplete: handleRecordingComplete, projectUrl }, void 0, false, {
+      fileName: "<stdin>",
+      lineNumber: 433,
       columnNumber: 16
     });
   }
@@ -454,46 +590,46 @@ const InfiniteReels = () => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 324,
+        lineNumber: 441,
         columnNumber: 17
       }
     )),
     loading && /* @__PURE__ */ jsxDEV("div", { className: "reel-item", children: /* @__PURE__ */ jsxDEV("div", { className: "reel-content loading-reel", children: [
       /* @__PURE__ */ jsxDEV("div", { className: "loading-spinner" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 335,
+        lineNumber: 452,
         columnNumber: 25
       }),
       /* @__PURE__ */ jsxDEV("div", { className: "loading-text", children: loadingStatus }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 336,
+        lineNumber: 453,
         columnNumber: 25
       })
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 334,
+      lineNumber: 451,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 333,
+      lineNumber: 450,
       columnNumber: 17
     }),
     showManualLoadButton && /* @__PURE__ */ jsxDEV("div", { className: "reel-item", children: /* @__PURE__ */ jsxDEV("div", { className: "reel-content loading-reel", children: /* @__PURE__ */ jsxDEV("button", { onClick: generateNewReel, className: "start-button", children: "Generate Next Reel" }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 344,
+      lineNumber: 461,
       columnNumber: 26
     }) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 343,
+      lineNumber: 460,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 342,
+      lineNumber: 459,
       columnNumber: 18
     })
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 322,
+    lineNumber: 439,
     columnNumber: 9
   });
 };
