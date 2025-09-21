@@ -207,6 +207,75 @@ body {
     transform: scale(1.1);
 }
 
+.settings-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 20px;
+    padding: 20px;
+    text-align: center;
+    animation: fadeIn 1s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 30px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+}
+
+.settings-label {
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.settings-input {
+    padding: 10px;
+    font-size: 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0,0,0,0.3);
+    color: white;
+    width: 100px;
+    text-align: center;
+    transition: box-shadow 0.3s ease;
+}
+
+.settings-input:focus {
+    outline: none;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+}
+
+.start-button {
+    padding: 12px 24px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 25px;
+    border: none;
+    cursor: pointer;
+    background: linear-gradient(45deg, #00ffff, #ff00ff);
+    color: #1a1a2e;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+}
+
+.start-button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 30px rgba(0, 255, 255, 0.7);
+}
+
 .fade-enter {
     opacity: 0;
     transform: translateY(50px);
@@ -261,4 +330,3 @@ body {
         right: 15px;
     }
 }
-
