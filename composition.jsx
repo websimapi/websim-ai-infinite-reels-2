@@ -7,10 +7,10 @@ import {
   useVideoConfig,
   spring
 } from "remotion";
-const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
+const AIVideoComposition = ({ concept, colors, animation, text, style, creator, projectTitle, projectDescription }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
-  console.log("Composition props:", { concept, colors, animation, text, style });
+  console.log("Composition props:", { concept, colors, animation, text, style, creator, projectTitle });
   const opacity = interpolate(frame, [0, 30], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp"
@@ -70,6 +70,15 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
     frame: Math.max(0, frame - 60),
     config: { damping: 200 }
   });
+  const creatorOpacity = interpolate(frame, [30, 60], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp"
+  });
+  const creatorScale = spring({
+    fps,
+    frame: Math.max(0, frame - 30),
+    config: { damping: 200 }
+  });
   return /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { background: getBackground() }, children: [
     /* @__PURE__ */ jsxDEV("div", { style: {
       position: "absolute",
@@ -88,7 +97,7 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
       durationInFrames
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 82,
+      lineNumber: 94,
       columnNumber: 13
     }),
     /* @__PURE__ */ jsxDEV(AbsoluteFill, { children: Array.from({ length: 15 }).map((_, i) => /* @__PURE__ */ jsxDEV(
@@ -103,14 +112,125 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 99,
+        lineNumber: 111,
         columnNumber: 21
       }
     )) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 97,
+      lineNumber: 109,
       columnNumber: 13
     }),
+    creator && /* @__PURE__ */ jsxDEV(
+      AbsoluteFill,
+      {
+        style: {
+          justifyContent: "flex-start",
+          alignItems: "flex-start",
+          padding: 20,
+          opacity: creatorOpacity,
+          transform: `scale(${creatorScale})`
+        },
+        children: /* @__PURE__ */ jsxDEV(
+          "div",
+          {
+            style: {
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              background: "rgba(0, 0, 0, 0.7)",
+              backdropFilter: "blur(10px)",
+              padding: 12,
+              borderRadius: 20,
+              border: `1px solid ${primaryColor}40`,
+              boxShadow: `0 0 20px ${primaryColor}30`
+            },
+            children: [
+              /* @__PURE__ */ jsxDEV(
+                "img",
+                {
+                  src: creator.avatar_url || `https://images.websim.com/avatar/${creator.username}`,
+                  alt: creator.username,
+                  style: {
+                    width: 40,
+                    height: 40,
+                    borderRadius: "50%",
+                    border: `2px solid ${primaryColor}`,
+                    boxShadow: `0 0 15px ${primaryColor}50`
+                  }
+                },
+                void 0,
+                false,
+                {
+                  fileName: "<stdin>",
+                  lineNumber: 145,
+                  columnNumber: 25
+                }
+              ),
+              /* @__PURE__ */ jsxDEV("div", { children: [
+                /* @__PURE__ */ jsxDEV(
+                  "div",
+                  {
+                    style: {
+                      fontSize: 14,
+                      fontWeight: "bold",
+                      color: primaryColor,
+                      marginBottom: 2
+                    },
+                    children: [
+                      "@",
+                      creator.username
+                    ]
+                  },
+                  void 0,
+                  true,
+                  {
+                    fileName: "<stdin>",
+                    lineNumber: 157,
+                    columnNumber: 29
+                  }
+                ),
+                /* @__PURE__ */ jsxDEV(
+                  "div",
+                  {
+                    style: {
+                      fontSize: 10,
+                      color: accentColor,
+                      opacity: 0.8
+                    },
+                    children: "Original Creator"
+                  },
+                  void 0,
+                  false,
+                  {
+                    fileName: "<stdin>",
+                    lineNumber: 167,
+                    columnNumber: 29
+                  }
+                )
+              ] }, void 0, true, {
+                fileName: "<stdin>",
+                lineNumber: 156,
+                columnNumber: 25
+              })
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "<stdin>",
+            lineNumber: 132,
+            columnNumber: 21
+          }
+        )
+      },
+      void 0,
+      false,
+      {
+        fileName: "<stdin>",
+        lineNumber: 123,
+        columnNumber: 17
+      }
+    ),
     /* @__PURE__ */ jsxDEV(
       AbsoluteFill,
       {
@@ -150,7 +270,7 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
               false,
               {
                 fileName: "<stdin>",
-                lineNumber: 132,
+                lineNumber: 204,
                 columnNumber: 21
               }
             )
@@ -159,7 +279,7 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
           false,
           {
             fileName: "<stdin>",
-            lineNumber: 118,
+            lineNumber: 190,
             columnNumber: 17
           }
         )
@@ -168,7 +288,7 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 110,
+        lineNumber: 182,
         columnNumber: 13
       }
     ),
@@ -196,7 +316,7 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
           false,
           {
             fileName: "<stdin>",
-            lineNumber: 152,
+            lineNumber: 224,
             columnNumber: 17
           }
         )
@@ -205,13 +325,94 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 145,
+        lineNumber: 217,
+        columnNumber: 13
+      }
+    ),
+    /* @__PURE__ */ jsxDEV(
+      AbsoluteFill,
+      {
+        style: {
+          justifyContent: "flex-end",
+          alignItems: "center",
+          paddingBottom: 40,
+          paddingLeft: 20,
+          paddingRight: 20
+        },
+        children: /* @__PURE__ */ jsxDEV(
+          "div",
+          {
+            style: {
+              background: "rgba(0, 0, 0, 0.8)",
+              backdropFilter: "blur(10px)",
+              padding: 16,
+              borderRadius: 12,
+              border: `1px solid ${primaryColor}40`,
+              maxWidth: "80%",
+              textAlign: "center"
+            },
+            children: [
+              /* @__PURE__ */ jsxDEV(
+                "h2",
+                {
+                  style: {
+                    fontSize: 24,
+                    fontWeight: "bold",
+                    color: primaryColor,
+                    marginBottom: 8,
+                    textShadow: `0 0 20px ${primaryColor}`
+                  },
+                  children: projectTitle || text || concept || "AI Reels"
+                },
+                void 0,
+                false,
+                {
+                  fileName: "<stdin>",
+                  lineNumber: 258,
+                  columnNumber: 21
+                }
+              ),
+              projectDescription && /* @__PURE__ */ jsxDEV(
+                "p",
+                {
+                  style: {
+                    fontSize: 14,
+                    color: accentColor,
+                    opacity: 0.9,
+                    lineHeight: 1.4
+                  },
+                  children: projectDescription
+                },
+                void 0,
+                false,
+                {
+                  fileName: "<stdin>",
+                  lineNumber: 270,
+                  columnNumber: 25
+                }
+              )
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "<stdin>",
+            lineNumber: 247,
+            columnNumber: 17
+          }
+        )
+      },
+      void 0,
+      false,
+      {
+        fileName: "<stdin>",
+        lineNumber: 238,
         columnNumber: 13
       }
     )
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 80,
+    lineNumber: 92,
     columnNumber: 9
   });
 };

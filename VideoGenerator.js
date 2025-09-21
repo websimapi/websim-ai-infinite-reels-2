@@ -1,28 +1,32 @@
 // AI-powered video content generator using Websim metadata
 export async function generateVideoContent() {
     try {
-        // Fetch trending Websim content for inspiration
-        const websimData = await fetchWebsimMetadata();
+        // Fetch websim project data for inspiration
+        const projectData = await fetchWebsimProjectData();
         
-        // Generate AI video concept based on metadata
-        const concept = await generateAIConcept(websimData);
+        // Generate AI video concept based on project metadata
+        const concept = await generateAIConcept(projectData);
         
         // Create video configuration with validation
         const content = {
-            title: concept.title || "AI Video",
-            description: concept.description || "Generated content",
+            title: concept.title || projectData.title || "AI Video",
+            description: concept.description || projectData.description || "Generated content",
             tags: concept.tags || ["ai", "video"],
             durationInFrames: 180,
             inputProps: {
                 concept: concept.visualConcept || "Abstract art",
                 colors: concept.colors || ["#00ffff", "#ff00ff", "#ffffff"],
                 animation: concept.animation || "smooth",
-                text: concept.text || concept.title || "AI Video",
-                style: concept.style || "cyberpunk"
+                text: concept.text || projectData.title || "AI Video",
+                style: concept.style || "cyberpunk",
+                // Add creator and project info
+                creator: projectData.creator,
+                projectTitle: projectData.title,
+                projectDescription: projectData.description
             }
         };
         
-        console.log("Generated video content:", content); // Debug log
+        console.log("Generated video content:", content);
         return content;
     } catch (error) {
         console.error("Error generating video content:", error);
@@ -30,69 +34,100 @@ export async function generateVideoContent() {
     }
 }
 
-async function fetchWebsimMetadata() {
+async function fetchWebsimProjectData() {
     try {
-        // Fetch current active project metadata
-        const currentProject = await window.websim.getCurrentProject();
+        // First try to get current user for API calls
+        const user = await window.websim.getUser();
         
-        if (currentProject) {
+        if (user) {
+            // Fetch user's following to get recent projects
+            const response = await fetch(`/api/v1/users/${user.username}/following`);
+            const followingData = await response.json();
+            
+            if (followingData.following && followingData.following.data.length > 0) {
+                // Get a random followed user's projects
+                const randomFollow = followingData.following.data[Math.floor(Math.random() * followingData.following.data.length)];
+                const followedUser = randomFollow.follow;
+                
+                // Fetch that user's projects
+                const projectsResponse = await fetch(`/api/v1/users/${followedUser.username}/projects`);
+                const projectsData = await projectsResponse.json();
+                
+                if (projectsData.projects && projectsData.projects.data.length > 0) {
+                    const randomProject = projectsData.projects.data[Math.floor(Math.random() * projectsData.projects.data.length)];
+                    
+                    return {
+                        title: randomProject.title,
+                        description: randomProject.description,
+                        creator: {
+                            username: followedUser.username,
+                            avatar_url: followedUser.avatar_url,
+                            id: followedUser.id
+                        },
+                        projectId: randomProject.id,
+                        category: 'websim-project'
+                    };
+                }
+            }
+        }
+        
+        // Fallback: try to get current project
+        const currentProject = await window.websim.getCurrentProject();
+        const creator = await window.websim.getCreator();
+        
+        if (currentProject && creator) {
             return {
                 title: currentProject.title,
                 description: currentProject.description,
-                tags: [], // Project doesn't include tags in the API
-                category: 'active-project'
+                creator: creator,
+                projectId: currentProject.id,
+                category: 'current-project'
             };
         }
         
-        // If no current project, try to get creator info as fallback
-        const creator = await window.websim.getCreator();
-        if (creator) {
-            return {
-                title: `${creator.username}'s Creative Space`,
-                description: "Exploring creativity with AI and code",
-                tags: ["creator", "ai", "websim"],
-                category: 'creator'
-            };
-        }
     } catch (error) {
-        console.log("Could not fetch current project data, using fallback:", error);
+        console.log("Could not fetch project data, using fallback:", error);
     }
     
-    // Fallback data
+    // Ultimate fallback
     return {
         title: "AI Creative Exploration",
         description: "Discovering new frontiers in digital creativity",
-        tags: ["ai", "creative", "digital"],
+        creator: {
+            username: "websim",
+            avatar_url: null,
+            id: "websim"
+        },
         category: "technology"
     };
 }
 
-async function generateAIConcept(websimData) {
+async function generateAIConcept(projectData) {
     try {
         const prompt = `Create a short video concept based on this Websim project:
-Title: ${websimData.title}
-Description: ${websimData.description}
-Category: ${websimData.category}
+Title: ${projectData.title}
+Description: ${projectData.description}
+Creator: ${projectData.creator.username}
+Category: ${projectData.category}
 
 Generate a JSON response with:
-- title: catchy video title (max 50 chars)
-- description: brief description (max 100 chars)  
-- tags: array of 3-5 relevant hashtags
-- visualConcept: description of visual elements
-- colors: array of 2-3 hex colors for the theme
+- title: catchy video title referencing the project (max 50 chars)
+- description: brief description about the project (max 100 chars)  
+- tags: array of 3-5 relevant hashtags related to the project
+- visualConcept: description of visual elements inspired by the project
+- colors: array of 2-3 hex colors that match the project theme
 - animation: animation style (smooth, bouncy, dramatic, etc)
-- text: main text to display in video
-- style: visual style (minimal, cyberpunk, retro, etc)`;
+- text: main text to display in video (project title or related)
+- style: visual style (minimal, cyberpunk, retro, etc) that fits the project`;
 
-        const completion = await websim.chat.completions.create({
+        const completion = await window.websim.chatCompletion({
             messages: [
                 {
-                    role: "system",
-                    content: prompt
-                },
-                {
-                    role: "user", 
-                    content: "Generate a creative video concept"
+                    role: "user",
+                    content: [{
+                        type: "text",
+                        text: prompt
+                    }]
                 }
             ],
             json: true
@@ -101,11 +136,11 @@ Generate a JSON response with:
         return JSON.parse(completion.content);
     } catch (error) {
         console.error("AI concept generation failed:", error);
-        return generateRandomConcept(websimData);
+        return generateRandomConcept(projectData);
     }
 }
 
-function generateRandomConcept(websimData) {
+function generateRandomConcept(projectData) {
     const concepts = [
         {
             title: "Digital Dreams",
@@ -114,7 +149,7 @@ function generateRandomConcept(websimData) {
             visualConcept: "Flowing particles forming geometric shapes",
             colors: ["#00ffff", "#ff00ff", "#ffffff"],
             animation: "smooth",
-            text: websimData.title,
+            text: projectData.title,
             style: "cyberpunk"
         },
         {
@@ -134,7 +169,7 @@ function generateRandomConcept(websimData) {
             visualConcept: "Neon grids and flowing data streams",
             colors: ["#ff6b6b", "#4ecdc4", "#45b7d1"],
             animation: "bouncy",
-            text: websimData.title,
+            text: projectData.title,
             style: "retro"
         }
     ];
