@@ -3,17 +3,28 @@ import * as api from './websim-api.js';
 // AI-powered video content generator using Websim metadata
 export async function generateVideoContent() {
     try {
+        console.log("[VideoGenerator] Starting video content generation...");
         // Fetch websim project data for inspiration
+        console.log("[VideoGenerator] Fetching websim project data...");
         const projectData = await fetchWebsimProjectData();
+        console.log("[VideoGenerator] Fetched project data:", projectData);
         
         // Generate AI video concept based on project metadata
+        console.log("[VideoGenerator] Generating AI concept script...");
         const script = await generateAIConcept(projectData);
+        console.log("[VideoGenerator] Generated AI script:", script);
+        
+        if (!script || !script.scenes || script.scenes.length === 0) {
+            console.error("[VideoGenerator] AI script generation failed or returned empty scenes. Using fallback.");
+            return generateFallbackContent();
+        }
 
         // Generate images for each scene
-        const imageGenerationPromises = script.scenes.map(async (scene) => {
+        console.log(`[VideoGenerator] Generating ${script.scenes.length} images for scenes...`);
+        const imageGenerationPromises = script.scenes.map(async (scene, index) => {
             if (scene.visualConcept) {
                 try {
-                    console.log(`Generating image for concept: "${scene.visualConcept}" with style: ${scene.style}`);
+                    console.log(`[VideoGenerator] Scene ${index + 1}: Generating image for concept: "${scene.visualConcept}" with style: ${scene.style}`);
                     const result = await websim.imageGen({
                         prompt: `${scene.visualConcept}, in a ${scene.style} style, cinematic lighting, high detail, vertical composition`,
                         width: 540,
@@ -21,9 +32,9 @@ export async function generateVideoContent() {
                         aspect_ratio: "9:16"
                     });
                     scene.imageUrl = result.url;
-                    console.log(`Generated image URL: ${scene.imageUrl}`);
+                    console.log(`[VideoGenerator] Scene ${index + 1}: Generated image URL: ${scene.imageUrl}`);
                 } catch (imgError) {
-                    console.error("Image generation failed for scene:", scene, imgError);
+                    console.error(`[VideoGenerator] Scene ${index + 1}: Image generation failed.`, imgError);
                     // Using a placeholder image on failure
                     scene.imageUrl = 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=1080&auto=format&fit=crop'; 
                 }
@@ -31,13 +42,18 @@ export async function generateVideoContent() {
             return scene;
         });
 
+        console.log("[VideoGenerator] Waiting for all image generation promises to resolve...");
         script.scenes = await Promise.all(imageGenerationPromises);
+        console.log("[VideoGenerator] All images generated. Updated scenes:", script.scenes);
         
         // Calculate total duration from scene scripts
+        console.log("[VideoGenerator] Calculating total duration...");
         const totalDurationInSeconds = script.scenes.reduce((acc, scene) => acc + (scene.durationInSeconds || 3), 0);
         const durationInFrames = Math.max(180, Math.floor(totalDurationInSeconds * 30));
+        console.log(`[VideoGenerator] Total duration: ${totalDurationInSeconds}s (${durationInFrames} frames)`);
         
         // Create video configuration with validation
+        console.log("[VideoGenerator] Creating final content object...");
         const content = {
             title: script.title || projectData.title || "AI Video",
             description: script.description || projectData.description || "Generated content",
@@ -50,10 +66,10 @@ export async function generateVideoContent() {
             }
         };
         
-        console.log("Generated video content:", content);
+        console.log("[VideoGenerator] Finished video content generation. Returning content:", content);
         return content;
     } catch (error) {
-        console.error("Error generating video content:", error);
+        console.error("[VideoGenerator] Critical error in generateVideoContent:", error);
         return generateFallbackContent();
     }
 }
