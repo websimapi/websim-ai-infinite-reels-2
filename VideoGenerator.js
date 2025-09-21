@@ -1,5 +1,23 @@
 import * as api from './websim-api.js';
 
+async function urlToDataUrl(url) {
+    // This can fail due to CORS if the image is not from a whitelisted domain.
+    // websim asset URLs should be fine.
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error("Failed to convert URL to Data URL:", error);
+        return null;
+    }
+}
+
 // AI-powered video content generator using Websim metadata
 export async function generateVideoContent(updateStatus, scenesPerReel = 3) {
     try {
@@ -20,37 +38,53 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3) {
             return generateFallbackContent(scenesPerReel);
         }
 
-        updateStatus("Generating visual assets...");
-        console.log(`[VideoGenerator] Generating images for ${script.scenes.length} scenes...`);
+        updateStatus("Generating visual and audio assets...");
+        console.log(`[VideoGenerator] Generating assets for ${script.scenes.length} scenes...`);
 
-        // Generate images in parallel for efficiency
-        const imageGenerationPromises = script.scenes.map((scene, i) => {
-            if (!scene.visualConcept) {
-                console.log(`[VideoGenerator] Scene ${i + 1}: No visual concept, skipping image generation.`);
-                return Promise.resolve(null); // Resolve with null if no concept
+        // Generate images and audio in parallel
+        const assetGenerationPromises = script.scenes.map((scene, i) => (async () => {
+            // Image Generation
+            if (scene.visualConcept) {
+                updateStatus(`Generating visual for scene ${i + 1}/${script.scenes.length}...`);
+                console.log(`[VideoGenerator] Scene ${i + 1}: Generating image for concept: "${scene.visualConcept}"`);
+                try {
+                    const result = await websim.imageGen({
+                        prompt: `${scene.visualConcept}, in a ${scene.style} style, cinematic lighting, high detail, vertical composition`,
+                        width: 540,
+                        height: 960,
+                        aspect_ratio: "9:16"
+                    });
+                    scene.imageUrl = result.url;
+                    console.log(`[VideoGenerator] Scene ${i + 1}: Generated image URL: ${scene.imageUrl}`);
+                } catch (imgError) {
+                    console.error(`[VideoGenerator] Scene ${i + 1}: Image generation failed.`, imgError);
+                    scene.imageUrl = 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=1080&auto=format&fit=crop';
+                }
             }
-            updateStatus(`Generating visual for scene ${i + 1}/${script.scenes.length}...`);
-            console.log(`[VideoGenerator] Scene ${i + 1}: Generating image for concept: "${scene.visualConcept}" with style: ${scene.style}`);
-            return websim.imageGen({
-                prompt: `${scene.visualConcept}, in a ${scene.style} style, cinematic lighting, high detail, vertical composition`,
-                width: 540,
-                height: 960,
-                aspect_ratio: "9:16"
-            }).then(result => {
-                scene.imageUrl = result.url;
-                console.log(`[VideoGenerator] Scene ${i + 1}: Generated image URL: ${scene.imageUrl}`);
-                return scene;
-            }).catch(imgError => {
-                console.error(`[VideoGenerator] Scene ${i + 1}: Image generation failed.`, imgError);
-                scene.imageUrl = 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=1080&auto=format&fit=crop'; // Fallback image
-                return scene; // Return scene even on error
-            });
-        });
 
-        console.log("[VideoGenerator] Waiting for all image generation promises to resolve...");
-        await Promise.all(imageGenerationPromises);
+            // Audio Generation
+            if (scene.speech && scene.speech.trim() !== "") {
+                 updateStatus(`Generating voiceover for scene ${i + 1}/${script.scenes.length}...`);
+                 console.log(`[VideoGenerator] Scene ${i + 1}: Generating audio for speech: "${scene.speech}"`);
+                 try {
+                    const result = await websim.textToSpeech({
+                        text: scene.speech,
+                        voice: "en-male"
+                    });
+                    scene.audioUrl = result.url;
+                    console.log(`[VideoGenerator] Scene ${i + 1}: Generated audio URL: ${scene.audioUrl}`);
+                 } catch(audioError) {
+                    console.error(`[VideoGenerator] Scene ${i + 1}: Audio generation failed.`, audioError);
+                 }
+            }
+            return scene;
+        })());
+
+        console.log("[VideoGenerator] Waiting for all asset generation promises to resolve...");
+        const updatedScenes = await Promise.all(assetGenerationPromises);
+        script.scenes = updatedScenes;
         
-        console.log("[VideoGenerator] All images generated. Updated scenes:", script.scenes);
+        console.log("[VideoGenerator] All assets generated. Updated scenes:", script.scenes);
         
         updateStatus("Assembling your reel...");
         console.log("[VideoGenerator] Calculating total duration...");
@@ -119,7 +153,8 @@ async function fetchWebsimProjectData() {
             category: "trending",
             pageUrl,
             thumbnail: project.thumbnail?.url || null,
-            videoUrl: project.video?.url || null
+            videoUrl: project.video?.url || null,
+            screenshotUrl: item.project_revision?.current_screenshot_url || project.thumbnail?.url
         };
 
         // Fetch more details if we have a project ID
@@ -159,7 +194,8 @@ async function fetchWebsimProjectData() {
                     projectId: currentProject.id, 
                     category: "current-project",
                     revisionsSummary: "",
-                    assetsInfo: ""
+                    assetsInfo: "",
+                    screenshotUrl: null,
                 };
             }
         } catch (e) { 
@@ -171,7 +207,8 @@ async function fetchWebsimProjectData() {
             creator: { username: "websim", avatar_url: null, id: "websim" }, 
             category: "technology",
             revisionsSummary: "",
-            assetsInfo: ""
+            assetsInfo: "",
+            screenshotUrl: null,
         };
     }
 }
@@ -179,20 +216,20 @@ async function fetchWebsimProjectData() {
 async function generateAIConcept(projectData, scenesPerReel) {
     try {
         const prompt = `
-Create a compelling short video script for a Websim project. The video should be dynamic, visually interesting, and tell a story about the project's creation and features.
+Create a compelling short video script for a Websim project, using the provided screenshot for visual context. The video should be dynamic, visually interesting, and tell a story about the project's creation and features.
 
 **Project Context:**
 - **Title:** ${projectData.title}
 - **Creator:** @${projectData.creator.username}
 - **Description:** ${projectData.description}
-- **Category:** ${projectData.category}
 - **Development Insights (from AI's thought process):**
   ${projectData.revisionsSummary || "No development insights available."}
 - **Project Assets:**
   ${projectData.assetsInfo || "No asset data available."}
+- **Analyze the attached screenshot of the project to inform your creative choices.**
 
 **Your Task:**
-Based on all the provided context, generate a JSON object for a multi-scene video. The JSON object should have the following structure:
+Based on all the provided context (text AND image), generate a JSON object for a multi-scene video. The JSON object must have the following structure:
 {
   "title": "A catchy title for the video (max 50 chars)",
   "description": "A short, engaging description for the video (max 100 chars)",
@@ -200,10 +237,11 @@ Based on all the provided context, generate a JSON object for a multi-scene vide
   "scenes": [
     {
       "durationInSeconds": 3,
-      "visualConcept": "A detailed DALL-E prompt for an image that visually represents this scene. Be descriptive and creative. This will be used to generate an asset.",
+      "visualConcept": "A detailed DALL-E prompt for an image that visually represents this scene, inspired by the project context and screenshot. Be descriptive and creative.",
       "text": "A short, impactful text overlay for this scene (max 30 chars). Can be empty.",
+      "speech": "A voiceover script for this scene (max 150 chars). This should narrate the scene. Can be empty.",
       "colors": ["an", "array", "of", "2-3", "hex", "colors"],
-      "animation": "Choose one: 'smooth', 'bouncy', 'dramatic', 'energetic'",
+      "animation": "Choose one: 'smooth-zoom', 'bouncy-pop', 'dramatic-pan', 'energetic-slide', 'minimal-fade'",
       "style": "Choose one: 'cyberpunk', 'minimal', 'retro', 'corporate', 'artistic'"
     }
   ]
@@ -213,14 +251,28 @@ Create exactly ${scenesPerReel} scenes that flow together to tell a story.
 The total duration should be between ${scenesPerReel * 2} and ${scenesPerReel * 4} seconds.
 
 Example flow:
-1. **Hook:** An intriguing visual related to the project title.
+1. **Hook:** An intriguing visual related to the project title and screenshot.
 2. **Showcase:** A scene showing off a key feature or the project's purpose.
 3. **Creator/CTA:** A scene mentioning the creator and the project title.
 
-Be creative and make the concept reflect the essence of the project.`;
+Be creative and make the concept reflect the essence of the project, heavily influenced by the provided screenshot.`;
+
+        const messages = [{
+            role: "user",
+            content: [{ type: "text", text: prompt }]
+        }];
+        
+        if (projectData.screenshotUrl) {
+            console.log("[VideoGenerator] Converting screenshot to data URL for AI context...");
+            const imageDataUrl = await urlToDataUrl(projectData.screenshotUrl);
+            if (imageDataUrl) {
+                messages[0].content.push({ type: "image_url", image_url: { url: imageDataUrl } });
+                console.log("[VideoGenerator] Screenshot added to AI prompt.");
+            }
+        }
 
         const completion = await websim.chat.completions.create({
-            messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
+            messages,
             json: true,
         });
         const parsedContent = JSON.parse(completion.content);
@@ -244,6 +296,7 @@ Be creative and make the concept reflect the essence of the project.`;
                 durationInSeconds: 10 / scenesPerReel,
                 visualConcept: randomConcept.visualConcept,
                 text: randomConcept.text,
+                speech: randomConcept.speech,
                 colors: randomConcept.colors,
                 animation: randomConcept.animation,
                 style: randomConcept.style
@@ -260,8 +313,9 @@ function generateRandomConcept(projectData) {
             tags: ["ai", "creativity", "digital", "future"],
             visualConcept: "Flowing particles forming geometric shapes",
             colors: ["#00ffff", "#ff00ff", "#ffffff"],
-            animation: "smooth",
+            animation: "smooth-zoom",
             text: projectData.title,
+            speech: "Witness the birth of new ideas.",
             style: "cyberpunk"
         },
         {
@@ -270,8 +324,9 @@ function generateRandomConcept(projectData) {
             tags: ["code", "art", "programming", "visual"],
             visualConcept: "Code transforming into visual art",
             colors: ["#00ff00", "#ffffff", "#000000"],
-            animation: "dramatic",
+            animation: "dramatic-pan",
             text: "Create. Code. Inspire.",
+            speech: "Every line of code tells a story.",
             style: "minimal"
         },
         {
@@ -280,8 +335,9 @@ function generateRandomConcept(projectData) {
             tags: ["future", "neon", "tech", "vision"],
             visualConcept: "Neon grids and flowing data streams",
             colors: ["#ff6b6b", "#4ecdc4", "#45b7d1"],
-            animation: "bouncy",
+            animation: "bouncy-pop",
             text: projectData.title,
+            speech: "Step into the world of tomorrow.",
             style: "retro"
         }
     ];
@@ -294,8 +350,10 @@ function generateFallbackContent(scenesPerReel = 3) {
         durationInSeconds: 10 / scenesPerReel,
         visualConcept: `Abstract geometric pattern #${i + 1}`,
         imageUrl: `https://picsum.photos/seed/${Date.now() + i}/540/960`,
+        speech: "AI is creating new worlds.",
+        audioUrl: null,
         colors: ["#00ffff", "#ff00ff", "#ffffff"],
-        animation: "smooth",
+        animation: "smooth-zoom",
         text: "AI Creativity",
         style: "cyberpunk"
     }));
