@@ -318,7 +318,7 @@ async function fetchWithTimeout(resource, options = {}, timeout = 8000) {
     return response;
 }
 
-async function fetchWebsimProjectData() {
+export async function fetchWebsimProjectData() {
     let projectDetails = {};
     try {
         const res = await fetchWithTimeout("https://api.websim.com/api/v1/feed/trending?limit=24&offset=0&feed=hot_desktop&range=all");
