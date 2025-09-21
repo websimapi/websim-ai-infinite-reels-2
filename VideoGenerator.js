@@ -1,20 +1,64 @@
 import * as api from './websim-api.js';
 
 async function urlToDataUrl(url) {
-    // This can fail due to CORS if the image is not from a whitelisted domain.
-    // websim asset URLs should be fine.
+    console.log("[urlToDataUrl] Attempting to fetch:", url);
+    // If a websim helper exists for this, it's the best option.
+    if (window.websim && window.websim.passthroughUrl) {
+        try {
+            console.log("[urlToDataUrl] Using websim.passthroughUrl()");
+            const proxiedUrl = await window.websim.passthroughUrl(url);
+            const response = await fetch(proxiedUrl);
+            const blob = await response.blob();
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(blob);
+            });
+        } catch (e) {
+            console.warn("[urlToDataUrl] websim.passthroughUrl() failed, trying direct fetch.", e);
+        }
+    }
+    
+    // --- Fallback Mechanism ---
+    // 1. Try direct fetch first
     try {
+        console.log("[urlToDataUrl] Attempting direct fetch.");
         const response = await fetch(url);
         const blob = await response.blob();
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => resolve(reader.result);
-            reader.onerror = reject;
+            reader.onerror = reject; // Keep reject here for fallback chain
             reader.readAsDataURL(blob);
         });
     } catch (error) {
-        console.error("Failed to convert URL to Data URL:", error);
-        return null;
+        console.warn("[urlToDataUrl] Direct fetch failed due to CORS or network error. Trying CORS proxies.", error);
+        
+        // 2. If direct fetch fails, try CORS proxies
+        const proxies = [
+            'https://api.allorigins.win/raw?url=',
+            'https://corsproxy.io/?',
+        ];
+
+        for (const proxy of proxies) {
+            try {
+                const proxyUrl = `${proxy}${encodeURIComponent(url)}`;
+                console.log(`[urlToDataUrl] Trying proxy: ${proxy.split('/')[2]}`);
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error(`Proxy fetch failed with status ${response.status}`);
+                const blob = await response.blob();
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.readAsDataURL(blob);
+                });
+            } catch (proxyError) {
+                console.warn(`[urlToDataUrl] Proxy ${proxy.split('/')[2]} failed.`, proxyError);
+            }
+        }
+
+        console.error("[urlToDataUrl] All fetch attempts (direct and proxy) failed for URL:", url);
+        return null; // Return null if all attempts fail
     }
 }
 
@@ -268,6 +312,8 @@ Be creative and make the concept reflect the essence of the project, heavily inf
             if (imageDataUrl) {
                 messages[0].content.push({ type: "image_url", image_url: { url: imageDataUrl } });
                 console.log("[VideoGenerator] Screenshot added to AI prompt.");
+            } else {
+                console.warn("[VideoGenerator] Could not convert screenshot to data URL. Proceeding without image context.");
             }
         }
 
