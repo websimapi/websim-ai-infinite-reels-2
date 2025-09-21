@@ -170,9 +170,10 @@ const InfiniteReels = () => {
       console.error("[InfiniteReels] Generation timed out after 90 seconds.");
       setLoading(false);
       generationLock.current = false;
+      updateStatus("Generation timed out. Please try again.");
     }, 9e4);
     try {
-      const content = await generateVideoContent(updateStatus, settings.scenesPerReel);
+      const content = await generateVideoContent(updateStatus, settings.scenesPerReel, reels.length);
       if (!content) {
         throw new Error("Content generation returned null or undefined.");
       }
@@ -197,32 +198,35 @@ const InfiniteReels = () => {
       setLoading(false);
       generationLock.current = false;
     }
-  }, [settings.scenesPerReel]);
+  }, [settings.scenesPerReel, reels.length]);
   const loadInitialReels = useCallback(async () => {
-    if (reels.length > 0) return;
-    console.log(`[InfiniteReels] Loading ${settings.initialReels} initial reels...`);
-    setLoading(true);
-    updateStatus("Warming up the AI...");
+    if (reels.length > 0 || generationLock.current) return;
+    console.log(`[InfiniteReels] Loading ${settings.initialReels} initial reels sequentially...`);
     generationLock.current = true;
-    try {
-      const generationPromises = Array.from(
-        { length: settings.initialReels },
-        () => generateVideoContent(updateStatus, settings.scenesPerReel)
-      );
-      const initialReelsContent = await Promise.all(generationPromises);
-      console.log("[InfiniteReels] Initial content generated:", initialReelsContent);
-      setReels(initialReelsContent.filter(Boolean).map((content, index) => ({
-        id: Date.now() + index,
-        ...content,
-        timestamp: Date.now() + index
-      })));
-      console.log("[InfiniteReels] Initial reels loaded.");
-    } catch (error) {
-      console.error("[InfiniteReels] Error loading initial reels:", error);
-    } finally {
-      setLoading(false);
-      generationLock.current = false;
+    setLoading(true);
+    const initialReelsContent = [];
+    for (let i = 0; i < settings.initialReels; i++) {
+      try {
+        updateStatus(`Generating Reel ${i + 1} of ${settings.initialReels}...`);
+        const content = await generateVideoContent(updateStatus, settings.scenesPerReel, i);
+        if (content) {
+          initialReelsContent.push({
+            id: Date.now() + i,
+            ...content,
+            timestamp: Date.now() + i
+          });
+          setReels([...initialReelsContent]);
+        } else {
+          console.warn(`[InfiniteReels] Reel ${i + 1} generation returned no content. Skipping.`);
+        }
+      } catch (error) {
+        console.error(`[InfiniteReels] Error loading initial reel ${i + 1}:`, error);
+        updateStatus(`Error generating reel ${i + 1}. Moving to next.`);
+      }
     }
+    console.log("[InfiniteReels] Initial reels loaded:", initialReelsContent);
+    setLoading(false);
+    generationLock.current = false;
   }, [reels.length, settings.initialReels, settings.scenesPerReel]);
   useEffect(() => {
     if (appState === "reels") {
@@ -284,7 +288,7 @@ const InfiniteReels = () => {
               playerError
             ] }, void 0, true, {
               fileName: "<stdin>",
-              lineNumber: 244,
+              lineNumber: 251,
               columnNumber: 33
             }),
             /* @__PURE__ */ jsxDEV("div", { style: { fontSize: "12px", marginTop: "10px" }, children: [
@@ -292,12 +296,12 @@ const InfiniteReels = () => {
               JSON.stringify(reel, null, 2)
             ] }, void 0, true, {
               fileName: "<stdin>",
-              lineNumber: 245,
+              lineNumber: 252,
               columnNumber: 33
             })
           ] }, void 0, true, {
             fileName: "<stdin>",
-            lineNumber: 234,
+            lineNumber: 241,
             columnNumber: 29
           }) : /* @__PURE__ */ jsxDEV(
             Player,
@@ -329,39 +333,39 @@ const InfiniteReels = () => {
             false,
             {
               fileName: "<stdin>",
-              lineNumber: 250,
+              lineNumber: 257,
               columnNumber: 29
             }
           ) }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 232,
+            lineNumber: 239,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "reel-overlay" }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 277,
+            lineNumber: 284,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "progress-bar", style: { width: `${videoProgress}%` } }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 279,
+            lineNumber: 286,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "reel-metadata", children: [
             /* @__PURE__ */ jsxDEV("div", { className: "reel-title", children: reel.title }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 282,
+              lineNumber: 289,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "reel-description", children: reel.description }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 283,
+              lineNumber: 290,
               columnNumber: 25
             }),
             reel.inputProps?.creator && /* @__PURE__ */ jsxDEV("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10, opacity: 0.95 }, children: [
               /* @__PURE__ */ jsxDEV("img", { src: reel.inputProps.creator.avatar_url || `https://images.websim.com/avatar/${reel.inputProps.creator.username}`, alt: reel.inputProps.creator.username, style: { width: 24, height: 24, borderRadius: "50%" } }, void 0, false, {
                 fileName: "<stdin>",
-                lineNumber: 287,
+                lineNumber: 294,
                 columnNumber: 33
               }),
               /* @__PURE__ */ jsxDEV("span", { style: { fontSize: 12, opacity: 0.9 }, children: [
@@ -369,12 +373,12 @@ const InfiniteReels = () => {
                 reel.inputProps.creator.username
               ] }, void 0, true, {
                 fileName: "<stdin>",
-                lineNumber: 288,
+                lineNumber: 295,
                 columnNumber: 33
               })
             ] }, void 0, true, {
               fileName: "<stdin>",
-              lineNumber: 286,
+              lineNumber: 293,
               columnNumber: 29
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "reel-tags", children: reel.tags.map((tag, i) => /* @__PURE__ */ jsxDEV("span", { className: "tag", children: [
@@ -382,42 +386,42 @@ const InfiniteReels = () => {
               tag
             ] }, i, true, {
               fileName: "<stdin>",
-              lineNumber: 293,
+              lineNumber: 300,
               columnNumber: 33
             })) }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 291,
+              lineNumber: 298,
               columnNumber: 25
             })
           ] }, void 0, true, {
             fileName: "<stdin>",
-            lineNumber: 281,
+            lineNumber: 288,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "controls-overlay", children: [
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Like", children: "\u2764\uFE0F" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 299,
+              lineNumber: 306,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Remix", children: "\u{1F504}" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 300,
+              lineNumber: 307,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "control-btn", title: "Share", children: "\u{1F4E4}" }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 301,
+              lineNumber: 308,
               columnNumber: 25
             })
           ] }, void 0, true, {
             fileName: "<stdin>",
-            lineNumber: 298,
+            lineNumber: 305,
             columnNumber: 21
           })
         ] }, void 0, true, {
           fileName: "<stdin>",
-          lineNumber: 231,
+          lineNumber: 238,
           columnNumber: 17
         })
       },
@@ -425,7 +429,7 @@ const InfiniteReels = () => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 227,
+        lineNumber: 234,
         columnNumber: 13
       }
     );
@@ -433,7 +437,7 @@ const InfiniteReels = () => {
   if (appState === "settings") {
     return /* @__PURE__ */ jsxDEV(Settings, { onStart: handleStart }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 309,
+      lineNumber: 316,
       columnNumber: 16
     });
   }
@@ -450,46 +454,46 @@ const InfiniteReels = () => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 317,
+        lineNumber: 324,
         columnNumber: 17
       }
     )),
     loading && /* @__PURE__ */ jsxDEV("div", { className: "reel-item", children: /* @__PURE__ */ jsxDEV("div", { className: "reel-content loading-reel", children: [
       /* @__PURE__ */ jsxDEV("div", { className: "loading-spinner" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 328,
+        lineNumber: 335,
         columnNumber: 25
       }),
       /* @__PURE__ */ jsxDEV("div", { className: "loading-text", children: loadingStatus }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 329,
+        lineNumber: 336,
         columnNumber: 25
       })
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 327,
+      lineNumber: 334,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 326,
+      lineNumber: 333,
       columnNumber: 17
     }),
     showManualLoadButton && /* @__PURE__ */ jsxDEV("div", { className: "reel-item", children: /* @__PURE__ */ jsxDEV("div", { className: "reel-content loading-reel", children: /* @__PURE__ */ jsxDEV("button", { onClick: generateNewReel, className: "start-button", children: "Generate Next Reel" }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 337,
+      lineNumber: 344,
       columnNumber: 26
     }) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 336,
+      lineNumber: 343,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 335,
+      lineNumber: 342,
       columnNumber: 18
     })
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 315,
+    lineNumber: 322,
     columnNumber: 9
   });
 };

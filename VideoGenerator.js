@@ -63,80 +63,82 @@ async function urlToDataUrl(url) {
 }
 
 // AI-powered video content generator using Websim metadata
-export async function generateVideoContent(updateStatus, scenesPerReel = 3) {
+export async function generateVideoContent(updateStatus, scenesPerReel = 3, reelIndex = 0) {
+    const reelId = `Reel-${reelIndex + 1}`;
     try {
-        updateStatus("Fetching project data...");
-        console.log("[VideoGenerator] Starting video content generation...");
+        updateStatus(`${reelId}: Fetching project data...`);
+        console.log(`[VideoGenerator] ${reelId}: Starting video content generation...`);
         // Fetch websim project data for inspiration
-        console.log("[VideoGenerator] Fetching websim project data...");
+        console.log(`[VideoGenerator] ${reelId}: Fetching websim project data...`);
         const projectData = await fetchWebsimProjectData();
-        console.log("[VideoGenerator] Fetched project data:", projectData);
+        console.log(`[VideoGenerator] ${reelId}: Fetched project data:`, projectData.title);
         
-        updateStatus("Designing scenes with AI...");
-        console.log("[VideoGenerator] Generating AI concept script...");
+        updateStatus(`${reelId}: Designing scenes with AI...`);
+        console.log(`[VideoGenerator] ${reelId}: Generating AI concept script...`);
         const script = await generateAIConcept(projectData, scenesPerReel);
-        console.log("[VideoGenerator] Generated AI script:", script);
+        console.log(`[VideoGenerator] ${reelId}: Generated AI script for "${script.title}"`);
         
         if (!script || !script.scenes || script.scenes.length === 0) {
-            console.error("[VideoGenerator] AI script generation failed or returned empty scenes. Using fallback.");
-            return generateFallbackContent(scenesPerReel);
+            console.error(`[VideoGenerator] ${reelId}: AI script generation failed or returned empty scenes. Using fallback.`);
+            return generateFallbackContent(scenesPerReel, projectData);
         }
 
-        updateStatus("Generating visual and audio assets...");
-        console.log(`[VideoGenerator] Generating assets for ${script.scenes.length} scenes...`);
+        updateStatus(`${reelId}: Generating visual and audio assets...`);
+        console.log(`[VideoGenerator] ${reelId}: Generating assets for ${script.scenes.length} scenes...`);
 
         // Generate images and audio in parallel
         const assetGenerationPromises = script.scenes.map((scene, i) => (async () => {
+            const newScene = { ...scene }; // Create a copy to avoid race conditions on the original object
             // Image Generation
-            if (scene.visualConcept) {
-                updateStatus(`Generating visual for scene ${i + 1}/${script.scenes.length}...`);
-                console.log(`[VideoGenerator] Scene ${i + 1}: Generating image for concept: "${scene.visualConcept}"`);
+            if (newScene.visualConcept) {
+                updateStatus(`${reelId} (Scene ${i + 1}/${script.scenes.length}): Generating visual...`);
+                console.log(`[VideoGenerator] ${reelId} Scene ${i + 1}: Generating image for concept: "${newScene.visualConcept}"`);
                 try {
                     const result = await websim.imageGen({
-                        prompt: `${scene.visualConcept}, in a ${scene.style} style, cinematic lighting, high detail, vertical composition`,
+                        prompt: `${newScene.visualConcept}, in a ${newScene.style} style, cinematic lighting, high detail, vertical composition`,
                         width: 540,
                         height: 960,
                         aspect_ratio: "9:16"
                     });
-                    scene.imageUrl = result.url;
-                    console.log(`[VideoGenerator] Scene ${i + 1}: Generated image URL: ${scene.imageUrl}`);
+                    newScene.imageUrl = result.url;
+                    console.log(`[VideoGenerator] ${reelId} Scene ${i + 1}: Generated image URL: ${newScene.imageUrl}`);
                 } catch (imgError) {
-                    console.error(`[VideoGenerator] Scene ${i + 1}: Image generation failed.`, imgError);
-                    scene.imageUrl = 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=1080&auto=format&fit=crop';
+                    console.error(`[VideoGenerator] ${reelId} Scene ${i + 1}: Image generation failed.`, imgError);
+                    newScene.imageUrl = 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=1080&auto=format&fit=crop';
                 }
             }
 
             // Audio Generation
-            if (scene.speech && scene.speech.trim() !== "") {
-                 updateStatus(`Generating voiceover for scene ${i + 1}/${script.scenes.length}...`);
-                 console.log(`[VideoGenerator] Scene ${i + 1}: Generating audio for speech: "${scene.speech}"`);
+            if (newScene.speech && newScene.speech.trim() !== "") {
+                 updateStatus(`${reelId} (Scene ${i + 1}/${script.scenes.length}): Generating voiceover...`);
+                 console.log(`[VideoGenerator] ${reelId} Scene ${i + 1}: Generating audio for speech: "${newScene.speech}"`);
                  try {
                     const result = await websim.textToSpeech({
-                        text: scene.speech,
+                        text: newScene.speech,
                         voice: "en-male"
                     });
-                    scene.audioUrl = result.url;
-                    console.log(`[VideoGenerator] Scene ${i + 1}: Generated audio URL: ${scene.audioUrl}`);
+                    newScene.audioUrl = result.url;
+                    console.log(`[VideoGenerator] ${reelId} Scene ${i + 1}: Generated audio URL: ${newScene.audioUrl}`);
                  } catch(audioError) {
-                    console.error(`[VideoGenerator] Scene ${i + 1}: Audio generation failed.`, audioError);
+                    console.error(`[VideoGenerator] ${reelId} Scene ${i + 1}: Audio generation failed.`, audioError);
                  }
             }
-            return scene;
+            return newScene;
         })());
 
-        console.log("[VideoGenerator] Waiting for all asset generation promises to resolve...");
+        console.log(`[VideoGenerator] ${reelId}: Waiting for all asset generation promises to resolve...`);
         const updatedScenes = await Promise.all(assetGenerationPromises);
         script.scenes = updatedScenes;
         
-        console.log("[VideoGenerator] All assets generated. Updated scenes:", script.scenes);
+        console.log(`[VideoGenerator] ${reelId}: All assets generated. Updated scenes:`, script.scenes);
         
-        updateStatus("Assembling your reel...");
-        console.log("[VideoGenerator] Calculating total duration...");
+        updateStatus(`${reelId}: Assembling your reel...`);
+        console.log(`[VideoGenerator] ${reelId}: Calculating total duration...`);
         const totalDurationInSeconds = script.scenes.reduce((acc, scene) => acc + (scene.durationInSeconds || 3), 0);
         const durationInFrames = Math.max(180, Math.floor(totalDurationInSeconds * 30));
-        console.log(`[VideoGenerator] Total duration: ${totalDurationInSeconds}s (${durationInFrames} frames)`);
+        console.log(`[VideoGenerator] ${reelId}: Total duration: ${totalDurationInSeconds}s (${durationInFrames} frames)`);
         
-        console.log("[VideoGenerator] Creating final content object...");
+        console.log(`[VideoGenerator] ${reelId}: Creating final content object...`);
         const content = {
             title: script.title || projectData.title || "AI Video",
             description: script.description || projectData.description || "Generated content",
@@ -149,11 +151,11 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3) {
             }
         };
         
-        console.log("[VideoGenerator] Finished video content generation. Returning content:", content);
+        console.log(`[VideoGenerator] ${reelId}: Finished video content generation.`);
         return content;
     } catch (error) {
-        console.error("[VideoGenerator] Critical error in generateVideoContent:", error);
-        updateStatus("An error occurred. Retrying...");
+        console.error(`[VideoGenerator] ${reelId}: Critical error in generateVideoContent:`, error);
+        updateStatus(`An error occurred for ${reelId}. Retrying...`);
         return generateFallbackContent(scenesPerReel);
     }
 }
@@ -391,7 +393,10 @@ function generateRandomConcept(projectData) {
     return concepts[Math.floor(Math.random() * concepts.length)];
 }
 
-function generateFallbackContent(scenesPerReel = 3) {
+function generateFallbackContent(scenesPerReel = 3, projectData = null) {
+    const defaultCreator = { username: "websim", avatar_url: null, id: "websim" };
+    const defaultTitle = "AI Creativity";
+
     const scenes = Array.from({ length: scenesPerReel }, (_, i) => ({
         durationInSeconds: 10 / scenesPerReel,
         visualConcept: `Abstract geometric pattern #${i + 1}`,
@@ -411,8 +416,8 @@ function generateFallbackContent(scenesPerReel = 3) {
         durationInFrames: 300,
         inputProps: {
             scenes: scenes,
-            creator: { username: "websim", avatar_url: null, id: "websim" },
-            projectTitle: "AI Creativity"
+            creator: projectData?.creator || defaultCreator,
+            projectTitle: projectData?.title || defaultTitle
         }
     };
 }
