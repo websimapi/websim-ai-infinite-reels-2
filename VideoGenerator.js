@@ -385,6 +385,35 @@ async function fetchWebsimProjectData() {
                             console.warn("Could not fetch index.html content:", htmlError);
                         }
                     }
+                    
+                    // NEW: Fetch CSS and JS content
+                    projectDetails.codeAssets = {};
+                    const codeFileExtensions = ['.js', '.css', '.jsx', '.ts', '.tsx'];
+                    // Prioritize common entry point names
+                    const sortedAssets = [...assets].sort((a, b) => {
+                        const commonNames = ['main.js', 'index.js', 'app.js', 'script.js', 'styles.css', 'style.css'];
+                        const aScore = commonNames.indexOf(a.path.toLowerCase());
+                        const bScore = commonNames.indexOf(b.path.toLowerCase());
+                        if (aScore !== -1 && bScore !== -1) return aScore - bScore;
+                        if (aScore !== -1) return -1;
+                        if (bScore !== -1) return 1;
+                        return 0;
+                    });
+
+                    const codeAssets = sortedAssets.filter(a => codeFileExtensions.some(ext => a.path.endsWith(ext))).slice(0, 3); // limit to 3 other files
+
+                    for (const asset of codeAssets) {
+                        try {
+                           const res = await fetchWithTimeout(asset.url);
+                           if (res.ok) {
+                               const content = await res.text();
+                               projectDetails.codeAssets[asset.path] = content.substring(0, 1000); // truncate
+                               console.log(`[VideoGenerator] Fetched content of ${asset.path}.`);
+                           }
+                        } catch(codeError) {
+                            console.warn(`Could not fetch content for ${asset.path}:`, codeError);
+                        }
+                    }
                 }
             } catch (detailError) {
                 console.warn("Could not fetch project details:", detailError);
@@ -444,8 +473,22 @@ You can use this video as a scene's background by setting the "videoUrl" field t
 
         const htmlContext = projectData.htmlContent
             ? `
-**Project HTML Content (for context on functionality):**
+**Project HTML Content (for context on structure):**
+\`\`\`html
 ${projectData.htmlContent}
+\`\`\`
+` : "";
+
+        const codeContext = (projectData.codeAssets && Object.keys(projectData.codeAssets).length > 0)
+            ? `
+**Project Code Snippets (for context on functionality and style):**
+${Object.entries(projectData.codeAssets).map(([path, content]) => `
+---
+File: ${path}
+\`\`\`${path.split('.').pop()}
+${content}
+\`\`\`
+`).join('\n')}
 ` : "";
 
 
@@ -457,6 +500,7 @@ Create a compelling short video script for a Websim project. The video must be d
 - **Creator:** @${projectData.creator.username}
 - **Description:** ${projectData.description}
 ${htmlContext}
+${codeContext}
 - **Development Insights (AI's thought process):**
   ${projectData.revisionsSummary || "No development insights available."}
 - **Project Assets:**
@@ -505,15 +549,15 @@ Generate a JSON object for a multi-scene video. The JSON object must have the fo
 3.  Each scene MUST have at least one layer. Layers are for foreground elements.
 4.  Use the "layers" array to add dynamic text, shapes, or images on top of the background. Be creative with layering to explain features or highlight details.
 5.  All properties in the schema are required for each layer (position, size, animation, timing).
-6.  The "speech" for each scene should create a coherent narrative about the project, informed by its title, description, and HTML content.
+6.  The "speech" for each scene should create a coherent narrative about the project, informed by its title, description, and code content.
 7.  Total video duration should be between ${scenesPerReel * 2.5} and ${scenesPerReel * 5} seconds.
 
 Make the video tell a story. Example flow:
 1.  **Hook:** Use the project video as a background, with a bold text layer asking a question.
-2.  **Showcase:** Use a screenshot or generated image, with text/shape layers pointing out key features mentioned in the HTML content.
+2.  **Showcase:** Use a screenshot or generated image, with text/shape layers pointing out key features mentioned in the code.
 3.  **Creator/CTA:** A final dynamic scene with the project title and creator's name layered on top.
 
-Be creative and make the concept reflect the essence of the project, heavily influenced by all the provided context.`;
+Be creative and make the concept reflect the essence of the project, heavily influenced by all the provided context including the code.`;
 
         const messages = [{
             role: "user",
