@@ -10,15 +10,19 @@ import {
 const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
-  const opacity = interpolate(frame, [0, 30], [0, 1]);
+  console.log("Composition props:", { concept, colors, animation, text, style });
+  const opacity = interpolate(frame, [0, 30], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp"
+  });
   const scale = spring({
     fps,
     frame,
     config: { damping: animation === "bouncy" ? 100 : 200 }
   });
-  const primaryColor = colors?.[0] || "#00ffff";
-  const secondaryColor = colors?.[1] || "#ff00ff";
-  const accentColor = colors?.[2] || "#ffffff";
+  const primaryColor = colors && colors[0] || "#00ffff";
+  const secondaryColor = colors && colors[1] || "#ff00ff";
+  const accentColor = colors && colors[2] || "#ffffff";
   const getBackground = () => {
     switch (style) {
       case "cyberpunk":
@@ -55,7 +59,7 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 48,
+        lineNumber: 54,
         columnNumber: 13
       }
     );
@@ -67,6 +71,26 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
     config: { damping: 200 }
   });
   return /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { background: getBackground() }, children: [
+    /* @__PURE__ */ jsxDEV("div", { style: {
+      position: "absolute",
+      top: "10px",
+      left: "10px",
+      fontSize: "12px",
+      color: "white",
+      background: "rgba(0,0,0,0.7)",
+      padding: "5px",
+      borderRadius: "4px",
+      zIndex: 100
+    }, children: [
+      "Frame: ",
+      frame,
+      " / ",
+      durationInFrames
+    ] }, void 0, true, {
+      fileName: "<stdin>",
+      lineNumber: 82,
+      columnNumber: 13
+    }),
     /* @__PURE__ */ jsxDEV(AbsoluteFill, { children: Array.from({ length: 15 }).map((_, i) => /* @__PURE__ */ jsxDEV(
       Particle,
       {
@@ -79,12 +103,12 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 78,
+        lineNumber: 99,
         columnNumber: 21
       }
     )) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 76,
+      lineNumber: 97,
       columnNumber: 13
     }),
     /* @__PURE__ */ jsxDEV(
@@ -126,7 +150,7 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
               false,
               {
                 fileName: "<stdin>",
-                lineNumber: 112,
+                lineNumber: 132,
                 columnNumber: 21
               }
             )
@@ -135,7 +159,7 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
           false,
           {
             fileName: "<stdin>",
-            lineNumber: 98,
+            lineNumber: 118,
             columnNumber: 17
           }
         )
@@ -144,7 +168,7 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 89,
+        lineNumber: 110,
         columnNumber: 13
       }
     ),
@@ -152,10 +176,9 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
       AbsoluteFill,
       {
         style: {
-          justifyContent: "flex-end",
+          justifyContent: "center",
           alignItems: "center",
-          paddingBottom: 120,
-          transform: `translateY(${textY}px) scale(${textScale})`
+          paddingBottom: 120
         },
         children: /* @__PURE__ */ jsxDEV(
           "h1",
@@ -165,19 +188,15 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
               fontWeight: "bold",
               color: accentColor,
               textAlign: "center",
-              textShadow: `0 0 20px ${primaryColor}`,
-              background: `linear-gradient(45deg, ${primaryColor}, ${secondaryColor})`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text"
+              textShadow: `0 0 20px ${primaryColor}`
             },
-            children: text || "AI Reels"
+            children: text || concept || "AI Reels"
           },
           void 0,
           false,
           {
             fileName: "<stdin>",
-            lineNumber: 133,
+            lineNumber: 152,
             columnNumber: 17
           }
         )
@@ -186,52 +205,13 @@ const AIVideoComposition = ({ concept, colors, animation, text, style }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 125,
+        lineNumber: 145,
         columnNumber: 13
-      }
-    ),
-    concept && /* @__PURE__ */ jsxDEV(
-      AbsoluteFill,
-      {
-        style: {
-          justifyContent: "flex-end",
-          alignItems: "center",
-          paddingBottom: 60,
-          opacity: interpolate(frame, [120, 150], [0, 1])
-        },
-        children: /* @__PURE__ */ jsxDEV(
-          "p",
-          {
-            style: {
-              fontSize: 16,
-              color: accentColor,
-              textAlign: "center",
-              opacity: 0.8,
-              maxWidth: 300,
-              lineHeight: 1.4
-            },
-            children: concept
-          },
-          void 0,
-          false,
-          {
-            fileName: "<stdin>",
-            lineNumber: 160,
-            columnNumber: 21
-          }
-        )
-      },
-      void 0,
-      false,
-      {
-        fileName: "<stdin>",
-        lineNumber: 152,
-        columnNumber: 17
       }
     )
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 74,
+    lineNumber: 80,
     columnNumber: 9
   });
 };

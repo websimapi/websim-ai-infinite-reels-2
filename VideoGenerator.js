@@ -7,20 +7,23 @@ export async function generateVideoContent() {
         // Generate AI video concept based on metadata
         const concept = await generateAIConcept(websimData);
         
-        // Create video configuration
-        return {
-            title: concept.title,
-            description: concept.description,
-            tags: concept.tags,
-            durationInFrames: 180, // 6 seconds at 30fps
+        // Create video configuration with validation
+        const content = {
+            title: concept.title || "AI Video",
+            description: concept.description || "Generated content",
+            tags: concept.tags || ["ai", "video"],
+            durationInFrames: 180,
             inputProps: {
-                concept: concept.visualConcept,
-                colors: concept.colors,
-                animation: concept.animation,
-                text: concept.text,
-                style: concept.style
+                concept: concept.visualConcept || "Abstract art",
+                colors: concept.colors || ["#00ffff", "#ff00ff", "#ffffff"],
+                animation: concept.animation || "smooth",
+                text: concept.text || concept.title || "AI Video",
+                style: concept.style || "cyberpunk"
             }
         };
+        
+        console.log("Generated video content:", content); // Debug log
+        return content;
     } catch (error) {
         console.error("Error generating video content:", error);
         return generateFallbackContent();
@@ -138,11 +141,10 @@ function generateFallbackContent() {
         durationInFrames: 180,
         inputProps: {
             concept: "Abstract geometric patterns",
-            colors: ["#00ffff", "#ff00ff"],
+            colors: ["#00ffff", "#ff00ff", "#ffffff"],
             animation: "smooth",
             text: "AI Creativity",
-            style: "minimal"
+            style: "cyberpunk"
         }
     };
 }
-
