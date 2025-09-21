@@ -167,9 +167,9 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3, reel
             console.log(`[VideoGenerator] ${reelId}: Starting asset generation for Scene ${sceneNum}...`);
 
             // --- Path Correction Logic ---
-            // If imageUrl is a relative path, try to resolve it with project assets.
-            if (scene.imageUrl && scene.imageUrl.startsWith('/')) {
-                const assetName = scene.imageUrl.substring(1);
+            // If imageUrl is a relative path (e.g., /swirl.png or swirl.png), try to resolve it with project assets.
+            if (scene.imageUrl && !scene.imageUrl.startsWith('http')) {
+                const assetName = scene.imageUrl.startsWith('/') ? scene.imageUrl.substring(1) : scene.imageUrl;
                 const projectAsset = projectData.assets?.find(a => a.path === assetName);
                 if (projectAsset && projectAsset.url) {
                     console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Resolved relative path ${scene.imageUrl} to ${projectAsset.url}`);
@@ -182,8 +182,8 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3, reel
             // Correct paths in layers as well
             if(scene.layers && Array.isArray(scene.layers)) {
                 for (const layer of scene.layers) {
-                    if (layer.type === 'image' && layer.content && layer.content.startsWith('/')) {
-                        const assetName = layer.content.substring(1);
+                    if (layer.type === 'image' && layer.content && !layer.content.startsWith('http')) {
+                        const assetName = layer.content.startsWith('/') ? layer.content.substring(1) : layer.content;
                         const projectAsset = projectData.assets?.find(a => a.path === assetName);
                         if (projectAsset && projectAsset.url) {
                            console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum} Layer: Resolved relative path ${layer.content} to ${projectAsset.url}`);
