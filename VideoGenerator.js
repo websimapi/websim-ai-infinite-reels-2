@@ -22,6 +22,57 @@ async function getAudioDuration(url) {
     });
 }
 
+async function scrapeProjectImages(url) {
+    if (!url) return [];
+    console.log(`[scrapeProjectImages] Starting scrape for URL: ${url}`);
+    
+    const proxies = [
+        'https://api.allorigins.win/raw?url=',
+        'https://corsproxy.io/?',
+    ];
+
+    for (const proxy of proxies) {
+        try {
+            const proxyUrl = `${proxy}${encodeURIComponent(url)}`;
+            const proxyName = proxy.split('/')[2] || 'direct';
+            console.log(`[scrapeProjectImages] Trying proxy: ${proxyName}`);
+            
+            const response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error(`Proxy fetch failed with status ${response.status}`);
+            
+            const html = await response.text();
+            
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const images = Array.from(doc.querySelectorAll('img'));
+            
+            const imageUrls = images
+                .map(img => img.src || img.dataset.src) // Check src and data-src for lazy loaded images
+                .filter(Boolean)
+                .map(src => {
+                    try {
+                        return new URL(src, url).href;
+                    } catch (e) {
+                        return null; // Invalid URL
+                    }
+                })
+                .filter(Boolean);
+
+            if (imageUrls.length > 0) {
+                console.log(`[scrapeProjectImages] Successfully scraped ${imageUrls.length} image URLs using ${proxyName}.`);
+                return imageUrls;
+            }
+        } catch (error) {
+            const proxyName = proxy.split('/')[2] || 'direct';
+            console.warn(`[scrapeProjectImages] Proxy ${proxyName} failed.`, error);
+        }
+    }
+    
+    console.error(`[scrapeProjectImages] All scraping attempts failed for URL: ${url}`);
+    return [];
+}
+
+
 async function urlToDataUrl(url) {
     console.log("[urlToDataUrl] Attempting to fetch:", url);
     // If a websim helper exists for this, it's the best option.
@@ -255,12 +306,17 @@ async function fetchWebsimProjectData() {
 
         // NEW: Scrape images from the project's page to use in the video
         if (projectDetails.pageUrl) {
-            const allImages = await scrapeProjectImages(projectDetails.pageUrl);
-            projectDetails.scrapedImages = allImages
-                .filter(img => !img.startsWith('data:') && !img.includes('.svg') && !img.includes('avatar'))
-                .slice(0, 5); // Limit to 5 to keep the prompt clean
-            if (projectDetails.scrapedImages.length > 0) {
-                console.log(`[VideoGenerator] Found ${projectDetails.scrapedImages.length} usable images from project page.`);
+            try {
+                const allImages = await scrapeProjectImages(projectDetails.pageUrl);
+                projectDetails.scrapedImages = allImages
+                    .filter(img => !img.startsWith('data:') && !img.includes('.svg') && !img.includes('avatar'))
+                    .slice(0, 5); // Limit to 5 to keep the prompt clean
+                if (projectDetails.scrapedImages.length > 0) {
+                    console.log(`[VideoGenerator] Found ${projectDetails.scrapedImages.length} usable images from project page.`);
+                }
+            } catch (scrapeError) {
+                console.warn("Could not scrape project images:", scrapeError);
+                projectDetails.scrapedImages = [];
             }
         }
 
