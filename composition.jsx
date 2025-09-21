@@ -9,8 +9,94 @@ import {
   Series,
   Sequence,
   Img,
-  Audio
+  Audio,
+  OffthreadVideo
 } from "remotion";
+const Layer = ({ layer, sceneColors }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  if (!layer.timing || !layer.position || !layer.size) return null;
+  const startFrame = (layer.timing.start || 0) * fps;
+  const endFrame = (layer.timing.end || 3) * fps;
+  const opacity = interpolate(frame, [startFrame, startFrame + 15, endFrame - 15, endFrame], [0, 1, 1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp"
+  });
+  const scale = spring({ fps, frame: frame - startFrame, config: { damping: 200 } });
+  const slideInX = interpolate(frame, [startFrame, startFrame + 20], [layer.animation === "slide-in-left" ? -100 : 100, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp"
+  });
+  const getAnimationStyles = () => {
+    switch (layer.animation) {
+      case "slide-in-left":
+      case "slide-in-right":
+        return { transform: `translateX(${slideInX}%)` };
+      case "pop-up":
+        return { transform: `scale(${scale})` };
+      case "fade-in":
+      default:
+        return {};
+    }
+  };
+  const layerStyle = {
+    position: "absolute",
+    left: `${layer.position.x}%`,
+    top: `${layer.position.y}%`,
+    width: `${layer.size.width}%`,
+    height: layer.size.height ? `${layer.size.height}%` : "auto",
+    opacity,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    ...getAnimationStyles()
+  };
+  switch (layer.type) {
+    case "text":
+      const primaryColor = sceneColors?.[0] || "#00ffff";
+      return /* @__PURE__ */ jsxDEV("div", { style: layerStyle, children: /* @__PURE__ */ jsxDEV("p", { style: {
+        fontSize: layer.fontSize || 48,
+        color: layer.color || "white",
+        textAlign: "center",
+        fontWeight: layer.fontWeight || "bold",
+        lineHeight: 1.2,
+        fontFamily: layer.fontFamily === "monospace" ? "'Roboto Mono', monospace" : "'Poppins', sans-serif",
+        textShadow: `0 0 15px ${primaryColor}90`,
+        ...layer.style
+      }, children: layer.content }, void 0, false, {
+        fileName: "<stdin>",
+        lineNumber: 70,
+        columnNumber: 21
+      }) }, void 0, false, {
+        fileName: "<stdin>",
+        lineNumber: 69,
+        columnNumber: 17
+      });
+    case "image":
+      return /* @__PURE__ */ jsxDEV("div", { style: layerStyle, children: /* @__PURE__ */ jsxDEV(Img, { src: layer.content, style: { width: "100%", height: "100%", objectFit: "contain", ...layer.style } }, void 0, false, {
+        fileName: "<stdin>",
+        lineNumber: 87,
+        columnNumber: 21
+      }) }, void 0, false, {
+        fileName: "<stdin>",
+        lineNumber: 86,
+        columnNumber: 18
+      });
+    case "shape":
+      const bgColor = layer.color || sceneColors?.[1] || "#ff00ff";
+      return /* @__PURE__ */ jsxDEV("div", { style: {
+        ...layerStyle,
+        backgroundColor: bgColor,
+        borderRadius: layer.style?.borderRadius || 0
+      } }, void 0, false, {
+        fileName: "<stdin>",
+        lineNumber: 93,
+        columnNumber: 18
+      });
+    default:
+      return null;
+  }
+};
 const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
@@ -20,10 +106,15 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
     animation = "minimal-fade",
     // Default animation
     text,
+    // Legacy, can be used by layers
     style,
     visualConcept,
     imageUrl,
-    audioUrl
+    audioUrl,
+    videoUrl,
+    // New video property
+    layers = []
+    // New layers array
   } = scene;
   const contentOpacity = spring({ fps, frame: frame - 5, config: { damping: 200 } });
   const popIn = spring({ fps, frame: frame - 10, config: { damping: 100, stiffness: 200 } });
@@ -35,32 +126,24 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
     switch (animation) {
       case "smooth-zoom":
         return {
-          image: { transform: `scale(${interpolate(frame, [0, durationInFrames], [1.2, 1])})` },
-          text: { transform: `scale(${popIn})`, opacity: contentOpacity }
+          media: { transform: `scale(${interpolate(frame, [0, durationInFrames], [1.2, 1])})` }
         };
       case "bouncy-pop":
         return {
-          image: { transform: `scale(${interpolate(frame, [0, durationInFrames], [1.1, 1])})` },
-          text: { transform: `scale(${popIn})`, opacity: contentOpacity }
+          media: { transform: `scale(${interpolate(frame, [0, durationInFrames], [1.1, 1])})` }
         };
       case "dramatic-pan":
         return {
-          image: { transform: `scale(1.3) translateX(${interpolate(frame, [0, durationInFrames], [-20, 20])}px)` },
-          text: { transform: `scale(${popIn})`, opacity: contentOpacity }
+          media: { transform: `scale(1.3) translateX(${interpolate(frame, [0, durationInFrames], [-20, 20])}px)` }
         };
       case "energetic-slide":
         return {
-          image: { transform: `scale(${interpolate(frame, [0, durationInFrames], [1.1, 1])})` },
-          text: {
-            transform: `translateY(${interpolate(frame, [10, 30], [50, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })}px)`,
-            opacity: interpolate(frame, [10, 30], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
-          }
+          media: { transform: `scale(${interpolate(frame, [0, durationInFrames], [1.1, 1])})` }
         };
       case "minimal-fade":
       default:
         return {
-          image: { opacity: interpolate(frame, [0, 20], [0, 1]) },
-          text: { opacity: interpolate(frame, [10, 30], [0, 1]) }
+          media: { opacity: interpolate(frame, [0, 20], [0, 1]) }
         };
     }
   };
@@ -80,70 +163,85 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
         return `linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%)`;
     }
   };
-  return /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { background: getBackground(), opacity: sceneOpacity }, children: [
+  const backgroundMedia = videoUrl ? /* @__PURE__ */ jsxDEV(
+    OffthreadVideo,
+    {
+      src: videoUrl,
+      style: { width: "100%", height: "100%", objectFit: "cover", ...animationStyles.media }
+    },
+    void 0,
+    false,
+    {
+      fileName: "<stdin>",
+      lineNumber: 181,
+      columnNumber: 9
+    }
+  ) : imageUrl ? /* @__PURE__ */ jsxDEV(
+    Img,
+    {
+      src: imageUrl,
+      style: {
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        ...animationStyles.media
+      }
+    },
+    void 0,
+    false,
+    {
+      fileName: "<stdin>",
+      lineNumber: 186,
+      columnNumber: 9
+    }
+  ) : /* @__PURE__ */ jsxDEV(
+    AbsoluteFill,
+    {
+      style: {
+        justifyContent: "center",
+        alignItems: "center",
+        opacity: contentOpacity
+      },
+      children: /* @__PURE__ */ jsxDEV("div", { style: {
+        fontSize: 24,
+        color: accentColor,
+        textAlign: "center",
+        maxWidth: "80%",
+        opacity: 0.8,
+        padding: 20,
+        fontFamily: "'Poppins', sans-serif"
+      }, children: visualConcept || "Loading visual..." }, void 0, false, {
+        fileName: "<stdin>",
+        lineNumber: 203,
+        columnNumber: 13
+      })
+    },
+    void 0,
+    false,
+    {
+      fileName: "<stdin>",
+      lineNumber: 196,
+      columnNumber: 10
+    }
+  );
+  return /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { background: getBackground(), opacity: sceneOpacity, fontFamily: "'Poppins', sans-serif" }, children: [
     audioUrl && /* @__PURE__ */ jsxDEV(Audio, { src: audioUrl }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 98,
+      lineNumber: 220,
       columnNumber: 26
     }),
-    imageUrl ? /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { opacity: 1 }, children: [
-      /* @__PURE__ */ jsxDEV(
-        Img,
-        {
-          src: imageUrl,
-          style: {
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            ...animationStyles.image
-          }
-        },
-        void 0,
-        false,
-        {
-          fileName: "<stdin>",
-          lineNumber: 103,
-          columnNumber: 21
-        }
-      ),
+    /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { opacity: 1 }, children: [
+      backgroundMedia,
       /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { backgroundColor: "rgba(0,0,0,0.3)" } }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 112,
-        columnNumber: 21
+        lineNumber: 225,
+        columnNumber: 17
       })
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 102,
-      columnNumber: 17
-    }) : /* @__PURE__ */ jsxDEV(
-      AbsoluteFill,
-      {
-        style: {
-          justifyContent: "center",
-          alignItems: "center",
-          opacity: contentOpacity
-        },
-        children: /* @__PURE__ */ jsxDEV("div", { style: {
-          fontSize: 24,
-          color: accentColor,
-          textAlign: "center",
-          maxWidth: "80%",
-          opacity: 0.8,
-          padding: 20
-        }, children: visualConcept || "Loading visual..." }, void 0, false, {
-          fileName: "<stdin>",
-          lineNumber: 122,
-          columnNumber: 21
-        })
-      },
-      void 0,
-      false,
-      {
-        fileName: "<stdin>",
-        lineNumber: 115,
-        columnNumber: 18
-      }
-    ),
+      lineNumber: 223,
+      columnNumber: 13
+    }),
     isFirstScene && creator && /* @__PURE__ */ jsxDEV(
       AbsoluteFill,
       {
@@ -185,7 +283,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
                 false,
                 {
                   fileName: "<stdin>",
-                  lineNumber: 158,
+                  lineNumber: 251,
                   columnNumber: 25
                 }
               ),
@@ -208,7 +306,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
                   true,
                   {
                     fileName: "<stdin>",
-                    lineNumber: 170,
+                    lineNumber: 263,
                     columnNumber: 29
                   }
                 ),
@@ -226,13 +324,13 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
                   false,
                   {
                     fileName: "<stdin>",
-                    lineNumber: 180,
+                    lineNumber: 273,
                     columnNumber: 29
                   }
                 )
               ] }, void 0, true, {
                 fileName: "<stdin>",
-                lineNumber: 169,
+                lineNumber: 262,
                 columnNumber: 25
               })
             ]
@@ -241,7 +339,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
           true,
           {
             fileName: "<stdin>",
-            lineNumber: 145,
+            lineNumber: 238,
             columnNumber: 21
           }
         )
@@ -250,11 +348,20 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 137,
+        lineNumber: 230,
         columnNumber: 17
       }
     ),
-    text && /* @__PURE__ */ jsxDEV(
+    /* @__PURE__ */ jsxDEV(AbsoluteFill, { children: layers.map((layer, i) => /* @__PURE__ */ jsxDEV(Layer, { layer, sceneColors: colors }, i, false, {
+      fileName: "<stdin>",
+      lineNumber: 313,
+      columnNumber: 21
+    })) }, void 0, false, {
+      fileName: "<stdin>",
+      lineNumber: 311,
+      columnNumber: 13
+    }),
+    text && layers.length === 0 && /* @__PURE__ */ jsxDEV(
       AbsoluteFill,
       {
         style: {
@@ -272,7 +379,8 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
               textShadow: `0 0 30px ${primaryColor}`,
               maxWidth: "90%",
               lineHeight: 1.2,
-              ...animationStyles.text
+              opacity: contentOpacity,
+              transform: `scale(${popIn})`
             },
             children: text
           },
@@ -280,7 +388,7 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
           false,
           {
             fileName: "<stdin>",
-            lineNumber: 225,
+            lineNumber: 325,
             columnNumber: 21
           }
         )
@@ -289,13 +397,13 @@ const Scene = ({ scene, isFirstScene, creator, projectTitle }) => {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 219,
+        lineNumber: 319,
         columnNumber: 18
       }
     )
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 96,
+    lineNumber: 218,
     columnNumber: 9
   });
 };
@@ -304,11 +412,11 @@ const AIVideoComposition = ({ scenes, creator, projectTitle }) => {
   if (!scenes || scenes.length === 0) {
     return /* @__PURE__ */ jsxDEV(AbsoluteFill, { style: { background: "#111", justifyContent: "center", alignItems: "center" }, children: /* @__PURE__ */ jsxDEV("h1", { style: { color: "white", fontSize: 48 }, children: "Loading Scene..." }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 251,
+      lineNumber: 352,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 250,
+      lineNumber: 351,
       columnNumber: 13
     });
   }
@@ -328,7 +436,7 @@ const AIVideoComposition = ({ scenes, creator, projectTitle }) => {
         false,
         {
           fileName: "<stdin>",
-          lineNumber: 264,
+          lineNumber: 365,
           columnNumber: 25
         }
       )
@@ -337,16 +445,16 @@ const AIVideoComposition = ({ scenes, creator, projectTitle }) => {
     false,
     {
       fileName: "<stdin>",
-      lineNumber: 260,
+      lineNumber: 361,
       columnNumber: 21
     }
   )) }, void 0, false, {
     fileName: "<stdin>",
-    lineNumber: 258,
+    lineNumber: 359,
     columnNumber: 13
   }) }, void 0, false, {
     fileName: "<stdin>",
-    lineNumber: 257,
+    lineNumber: 358,
     columnNumber: 9
   });
 };

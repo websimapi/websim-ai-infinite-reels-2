@@ -251,6 +251,7 @@ async function fetchWebsimProjectData() {
             videoUrl: project.video?.url || null,
             screenshotUrl: item.project_revision?.current_screenshot_url || project.thumbnail?.url
         };
+        console.log(`[VideoGenerator] Project has video: ${!!projectDetails.videoUrl}`);
 
         // NEW: Scrape images from the project's page to use in the video
         if (projectDetails.pageUrl) {
@@ -279,6 +280,23 @@ async function fetchWebsimProjectData() {
                     const assetNames = assets.map(a => a.path).slice(0, 10);
                     if (assetNames.length > 0) {
                         projectDetails.assetsInfo = `Assets include: ${assetNames.join(', ')}`;
+                    }
+
+                    // NEW: Try to fetch content of index.html for more context
+                    const htmlAsset = assets.find(a => a.path === 'index.html');
+                    if (htmlAsset && htmlAsset.url) {
+                        try {
+                           const htmlRes = await fetchWithTimeout(htmlAsset.url);
+                           if (htmlRes.ok) {
+                               const htmlContent = await htmlRes.text();
+                               // Sanitize and truncate for prompt
+                               const cleanedHtml = htmlContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '').replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                               projectDetails.htmlContent = cleanedHtml.substring(0, 1500);
+                               console.log("[VideoGenerator] Fetched and processed index.html content.");
+                           }
+                        } catch(htmlError) {
+                            console.warn("Could not fetch index.html content:", htmlError);
+                        }
                     }
                 }
             } catch (detailError) {
@@ -324,27 +342,44 @@ async function generateAIConcept(projectData, scenesPerReel) {
         const scrapedImagesInfo = (projectData.scrapedImages && projectData.scrapedImages.length > 0)
             ? `
 **Project Images Available:**
-You can use these image URLs directly in the video. When you use one, set the "imageUrl" field for that scene and leave "visualConcept" as an empty string.
+You can use these image URLs directly as the main background visual or in a layer. When you use one as a background, set the "imageUrl" field for that scene and leave "visualConcept" empty.
 - ${projectData.scrapedImages.join('\n- ')}
 `
-            : "**No project images were found.** You must generate a 'visualConcept' for every scene.";
+            : "**No project images were found.** You must generate a 'visualConcept' for every scene's background.";
+
+        const videoAssetInfo = projectData.videoUrl 
+            ? `
+**Project Video Available:**
+A video of the project is available at this URL: ${projectData.videoUrl}
+You can use this video as a scene's background by setting the "videoUrl" field to this URL. You can also generate new images. A mix is good.
+`
+            : "**No project video was found.** You must use 'imageUrl' or 'visualConcept' for backgrounds.";
+
+        const htmlContext = projectData.htmlContent
+            ? `
+**Project HTML Content (for context on functionality):**
+${projectData.htmlContent}
+` : "";
+
 
         const prompt = `
-Create a compelling short video script for a Websim project, using the provided screenshot for visual context. The video should be dynamic, visually interesting, and tell a story about the project's creation and features.
+Create a compelling short video script for a Websim project. The video must be dynamic, multi-layered, and tell a story about the project's features and creation, using all available context.
 
 **Project Context:**
 - **Title:** ${projectData.title}
 - **Creator:** @${projectData.creator.username}
 - **Description:** ${projectData.description}
-- **Development Insights (from AI's thought process):**
+${htmlContext}
+- **Development Insights (AI's thought process):**
   ${projectData.revisionsSummary || "No development insights available."}
 - **Project Assets:**
   ${projectData.assetsInfo || "No asset data available."}
 - **Analyze the attached screenshot of the project to inform your creative choices.**
 ${scrapedImagesInfo}
+${videoAssetInfo}
 
 **Your Task:**
-Based on all the provided context (text, screenshot, and available project images), generate a JSON object for a multi-scene video. The JSON object must have the following structure:
+Generate a JSON object for a multi-scene video. The JSON object must have the following structure:
 {
   "title": "A catchy title for the video (max 50 chars)",
   "description": "A short, engaging description for the video (max 100 chars)",
@@ -352,30 +387,46 @@ Based on all the provided context (text, screenshot, and available project image
   "scenes": [
     {
       "durationInSeconds": 3,
-      "visualConcept": "A detailed DALL-E prompt for an image that visually represents this scene. LEAVE EMPTY IF USING imageUrl.",
-      "imageUrl": "URL of an image from the 'Project Images Available' list. LEAVE EMPTY IF USING visualConcept.",
-      "text": "A short, impactful text overlay for this scene (max 30 chars). Can be empty.",
-      "speech": "A voiceover script for this scene (max 150 chars). This should narrate the scene. Can be empty.",
+      "visualConcept": "A detailed DALL-E prompt for a background image. LEAVE EMPTY IF USING imageUrl or videoUrl.",
+      "imageUrl": "URL of an image from 'Project Images'. LEAVE EMPTY IF USING visualConcept or videoUrl.",
+      "videoUrl": "URL of the project video. LEAVE EMPTY IF USING visualConcept or imageUrl.",
+      "speech": "A voiceover script for this scene (max 150 chars). This narrates the scene.",
       "colors": ["an", "array", "of", "2-3", "hex", "colors"],
-      "animation": "Choose one: 'smooth-zoom', 'bouncy-pop', 'dramatic-pan', 'energetic-slide', 'minimal-fade'",
-      "style": "Choose one: 'cyberpunk', 'minimal', 'retro', 'corporate', 'artistic'"
+      "animation": "Background animation. Choose: 'smooth-zoom', 'bouncy-pop', 'dramatic-pan', 'energetic-slide', 'minimal-fade'",
+      "style": "Overall scene style. Choose: 'cyberpunk', 'minimal', 'retro', 'corporate', 'artistic'",
+      "layers": [
+        {
+          "type": "text",
+          "content": "Your text here",
+          "fontSize": 72,
+          "fontFamily": "default" or "monospace",
+          "fontWeight": "bold" or "normal",
+          "color": "#ffffff",
+          "position": {"x": 10, "y": 40},
+          "size": {"width": 80},
+          "animation": "Choose: 'fade-in', 'pop-up', 'slide-in-left', 'slide-in-right'",
+          "timing": {"start": 0.5, "end": 2.5}
+        }
+      ]
     }
   ]
 }
 
-- For each scene, you must provide EITHER a "visualConcept" OR an "imageUrl". Do not provide both.
-- Use at least one image from the project if any are available. Mix project images with newly generated ones for a dynamic feel.
-- Make the script tell a coherent story about the project.
+**Instructions & Rules:**
+1.  Create exactly ${scenesPerReel} scenes.
+2.  Each scene MUST have a background: either "visualConcept", "imageUrl", or "videoUrl". Prioritize using the project's video or images when relevant.
+3.  Each scene MUST have at least one layer. Layers are for foreground elements.
+4.  Use the "layers" array to add dynamic text, shapes, or images on top of the background. Be creative with layering to explain features or highlight details.
+5.  All properties in the schema are required for each layer (position, size, animation, timing).
+6.  The "speech" for each scene should create a coherent narrative about the project, informed by its title, description, and HTML content.
+7.  Total video duration should be between ${scenesPerReel * 2.5} and ${scenesPerReel * 5} seconds.
 
-Create exactly ${scenesPerReel} scenes that flow together to tell a story.
-The total duration should be between ${scenesPerReel * 2} and ${scenesPerReel * 4} seconds.
+Make the video tell a story. Example flow:
+1.  **Hook:** Use the project video as a background, with a bold text layer asking a question.
+2.  **Showcase:** Use a screenshot or generated image, with text/shape layers pointing out key features mentioned in the HTML content.
+3.  **Creator/CTA:** A final dynamic scene with the project title and creator's name layered on top.
 
-Example flow:
-1. **Hook:** An intriguing visual related to the project title and screenshot.
-2. **Showcase:** A scene using an actual image from the project ('imageUrl') to show off a key feature.
-3. **Creator/CTA:** A scene mentioning the creator and the project title, possibly with another generated visual.
-
-Be creative and make the concept reflect the essence of the project, heavily influenced by the provided screenshot and available images.`;
+Be creative and make the concept reflect the essence of the project, heavily influenced by all the provided context.`;
 
         const messages = [{
             role: "user",
@@ -402,69 +453,59 @@ Be creative and make the concept reflect the essence of the project, heavily inf
         // Basic validation
         if (!parsedContent.scenes || !Array.isArray(parsedContent.scenes) || parsedContent.scenes.length === 0) {
             console.warn("AI returned invalid scenes structure. Falling back.");
-            return generateRandomConcept(projectData);
+            return generateRandomConcept(projectData, scenesPerReel);
         }
         return parsedContent;
 
     } catch (error) {
         console.error("AI concept generation failed:", error);
-        // Return a structured response that matches what the composition expects
-        const randomConcept = generateRandomConcept(projectData);
-        return {
-            title: randomConcept.title,
-            description: randomConcept.description,
-            tags: randomConcept.tags,
-            scenes: Array.from({ length: scenesPerReel }, () => ({
-                durationInSeconds: 10 / scenesPerReel,
-                visualConcept: randomConcept.visualConcept,
-                text: randomConcept.text,
-                speech: randomConcept.speech,
-                colors: randomConcept.colors,
-                animation: randomConcept.animation,
-                style: randomConcept.style
-            }))
-        };
+        return generateRandomConcept(projectData, scenesPerReel);
     }
 }
 
-function generateRandomConcept(projectData) {
+function generateRandomConcept(projectData, scenesPerReel) {
     const concepts = [
         {
             title: "Digital Dreams",
             description: "Exploring the intersection of AI and creativity",
             tags: ["ai", "creativity", "digital", "future"],
-            visualConcept: "Flowing particles forming geometric shapes",
-            colors: ["#00ffff", "#ff00ff", "#ffffff"],
-            animation: "smooth-zoom",
-            text: projectData.title,
-            speech: "Witness the birth of new ideas.",
-            style: "cyberpunk"
+            sceneBase: {
+                visualConcept: "Flowing particles forming geometric shapes",
+                colors: ["#00ffff", "#ff00ff", "#ffffff"],
+                animation: "smooth-zoom",
+                speech: "Witness the birth of new ideas.",
+                style: "cyberpunk",
+                 layers: [{
+                    type: "text",
+                    content: projectData.title,
+                    fontSize: 72,
+                    fontFamily: "default",
+                    fontWeight: "bold",
+                    color: "#ffffff",
+                    position: {x:10, y:40},
+                    size: {width: 80},
+                    animation: "fade-in",
+                    timing: {start: 0.5, end: 2.5}
+                }]
+            }
         },
-        {
-            title: "Code Poetry",
-            description: "When programming becomes art",
-            tags: ["code", "art", "programming", "visual"],
-            visualConcept: "Code transforming into visual art",
-            colors: ["#00ff00", "#ffffff", "#000000"],
-            animation: "dramatic-pan",
-            text: "Create. Code. Inspire.",
-            speech: "Every line of code tells a story.",
-            style: "minimal"
-        },
-        {
-            title: "Neon Futures",
-            description: "Visions of tomorrow's digital landscape",
-            tags: ["future", "neon", "tech", "vision"],
-            visualConcept: "Neon grids and flowing data streams",
-            colors: ["#ff6b6b", "#4ecdc4", "#45b7d1"],
-            animation: "bouncy-pop",
-            text: projectData.title,
-            speech: "Step into the world of tomorrow.",
-            style: "retro"
-        }
     ];
     
-    return concepts[Math.floor(Math.random() * concepts.length)];
+    const concept = concepts[Math.floor(Math.random() * concepts.length)];
+    
+    return {
+        title: concept.title,
+        description: concept.description,
+        tags: concept.tags,
+        scenes: Array.from({ length: scenesPerReel }, (_, i) => ({
+            durationInSeconds: 10 / scenesPerReel,
+            ...concept.sceneBase,
+            layers: [{
+                ...concept.sceneBase.layers[0],
+                content: i === 0 ? projectData.title : `Scene ${i + 1}`
+            }]
+        }))
+    };
 }
 
 function generateFallbackContent(scenesPerReel = 3, projectData = null) {
@@ -479,7 +520,19 @@ function generateFallbackContent(scenesPerReel = 3, projectData = null) {
         audioUrl: null,
         colors: ["#00ffff", "#ff00ff", "#ffffff"],
         animation: "smooth-zoom",
-        text: "AI Creativity",
+        text: "AI Creativity", // Legacy
+        layers: [{ // New
+            type: "text",
+            content: "AI Creativity",
+            fontSize: 72,
+            fontFamily: "default",
+            fontWeight: "bold",
+            color: "#ffffff",
+            position: { x: 10, y: 40 },
+            size: { width: 80 },
+            animation: "fade-in",
+            timing: { start: 0.5, end: 2.5 }
+        }],
         style: "cyberpunk"
     }));
 
