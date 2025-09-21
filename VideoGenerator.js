@@ -84,50 +84,54 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3, reel
         }
 
         updateStatus(`${reelId}: Generating visual and audio assets...`);
-        console.log(`[VideoGenerator] ${reelId}: Generating assets for ${script.scenes.length} scenes...`);
+        console.log(`[VideoGenerator] ${reelId}: Generating assets sequentially for ${script.scenes.length} scenes...`);
 
-        // Generate images and audio in parallel
-        const assetGenerationPromises = script.scenes.map((scene, i) => (async () => {
-            const newScene = { ...scene }; // Create a copy to avoid race conditions on the original object
+        // Generate assets sequentially to avoid overwhelming services and for clearer progress.
+        const updatedScenes = [];
+        for (let i = 0; i < script.scenes.length; i++) {
+            const scene = script.scenes[i];
+            const sceneNum = i + 1;
+            console.log(`[VideoGenerator] ${reelId}: Starting asset generation for Scene ${sceneNum}...`);
+
             // Image Generation
-            if (newScene.visualConcept) {
-                updateStatus(`${reelId} (Scene ${i + 1}/${script.scenes.length}): Generating visual...`);
-                console.log(`[VideoGenerator] ${reelId} Scene ${i + 1}: Generating image for concept: "${newScene.visualConcept}"`);
+            if (scene.visualConcept) {
+                updateStatus(`${reelId} (Scene ${sceneNum}/${script.scenes.length}): Generating visual...`);
+                console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Generating image for concept: "${scene.visualConcept}"`);
                 try {
                     const result = await websim.imageGen({
-                        prompt: `${newScene.visualConcept}, in a ${newScene.style} style, cinematic lighting, high detail, vertical composition`,
+                        prompt: `${scene.visualConcept}, in a ${scene.style} style, cinematic lighting, high detail, vertical composition`,
                         width: 540,
                         height: 960,
                         aspect_ratio: "9:16"
                     });
-                    newScene.imageUrl = result.url;
-                    console.log(`[VideoGenerator] ${reelId} Scene ${i + 1}: Generated image URL: ${newScene.imageUrl}`);
+                    scene.imageUrl = result.url;
+                    console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Generated image URL: ${scene.imageUrl}`);
                 } catch (imgError) {
-                    console.error(`[VideoGenerator] ${reelId} Scene ${i + 1}: Image generation failed.`, imgError);
-                    newScene.imageUrl = 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=1080&auto=format&fit=crop';
+                    console.error(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Image generation failed. Using fallback.`, imgError);
+                    scene.imageUrl = `https://picsum.photos/seed/${Date.now() + i}/540/960`; // Fallback
                 }
             }
 
             // Audio Generation
-            if (newScene.speech && newScene.speech.trim() !== "") {
-                 updateStatus(`${reelId} (Scene ${i + 1}/${script.scenes.length}): Generating voiceover...`);
-                 console.log(`[VideoGenerator] ${reelId} Scene ${i + 1}: Generating audio for speech: "${newScene.speech}"`);
+            if (scene.speech && scene.speech.trim() !== "") {
+                 updateStatus(`${reelId} (Scene ${sceneNum}/${script.scenes.length}): Generating voiceover...`);
+                 console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Generating audio for speech: "${scene.speech}"`);
                  try {
                     const result = await websim.textToSpeech({
-                        text: newScene.speech,
+                        text: scene.speech,
                         voice: "en-male"
                     });
-                    newScene.audioUrl = result.url;
-                    console.log(`[VideoGenerator] ${reelId} Scene ${i + 1}: Generated audio URL: ${newScene.audioUrl}`);
+                    scene.audioUrl = result.url;
+                    console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Generated audio URL: ${scene.audioUrl}`);
                  } catch(audioError) {
-                    console.error(`[VideoGenerator] ${reelId} Scene ${i + 1}: Audio generation failed.`, audioError);
+                    console.error(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Audio generation failed.`, audioError);
+                    scene.audioUrl = null; // Ensure it's null on failure
                  }
             }
-            return newScene;
-        })());
-
-        console.log(`[VideoGenerator] ${reelId}: Waiting for all asset generation promises to resolve...`);
-        const updatedScenes = await Promise.all(assetGenerationPromises);
+            updatedScenes.push(scene);
+            console.log(`[VideoGenerator] ${reelId}: Completed asset generation for Scene ${sceneNum}.`);
+        }
+        
         script.scenes = updatedScenes;
         
         console.log(`[VideoGenerator] ${reelId}: All assets generated. Updated scenes:`, script.scenes);
