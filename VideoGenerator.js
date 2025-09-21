@@ -1,5 +1,27 @@
 import * as api from './websim-api.js';
 
+async function getAudioDuration(url) {
+    return new Promise((resolve, reject) => {
+        const audio = new Audio();
+        audio.preload = 'metadata';
+        
+        const timeout = setTimeout(() => {
+            reject(new Error("Audio duration check timed out after 10 seconds."));
+        }, 10000);
+
+        audio.onloadedmetadata = () => {
+            clearTimeout(timeout);
+            resolve(audio.duration);
+        };
+        audio.onerror = (e) => {
+            clearTimeout(timeout);
+            console.error("Error loading audio for duration check:", url, e);
+            reject(new Error("Could not load audio metadata."));
+        };
+        audio.src = url;
+    });
+}
+
 async function urlToDataUrl(url) {
     console.log("[urlToDataUrl] Attempting to fetch:", url);
     // If a websim helper exists for this, it's the best option.
@@ -123,10 +145,27 @@ export async function generateVideoContent(updateStatus, scenesPerReel = 3, reel
                     });
                     scene.audioUrl = result.url;
                     console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Generated audio URL: ${scene.audioUrl}`);
+
+                    try {
+                        updateStatus(`${reelId} (Scene ${sceneNum}/${script.scenes.length}): Analyzing voiceover...`);
+                        const duration = await getAudioDuration(scene.audioUrl);
+                        console.log(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Audio duration is ${duration.toFixed(2)}s.`);
+                        // Set scene duration to audio duration + a small buffer for transition
+                        scene.durationInSeconds = duration + 0.5;
+                    } catch (durationError) {
+                        console.warn(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Could not get audio duration. Using AI-provided duration.`, durationError);
+                        // Fallback to AI provided duration or a default
+                        scene.durationInSeconds = scene.durationInSeconds || 3;
+                    }
+
                  } catch(audioError) {
                     console.error(`[VideoGenerator] ${reelId} Scene ${sceneNum}: Audio generation failed.`, audioError);
                     scene.audioUrl = null; // Ensure it's null on failure
+                    scene.durationInSeconds = scene.durationInSeconds || 3;
                  }
+            } else {
+                // If no speech, use the duration provided by the AI, or default to 3 seconds.
+                scene.durationInSeconds = scene.durationInSeconds || 3;
             }
             updatedScenes.push(scene);
             console.log(`[VideoGenerator] ${reelId}: Completed asset generation for Scene ${sceneNum}.`);
