@@ -32,21 +32,30 @@ export async function generateVideoContent() {
 
 async function fetchWebsimMetadata() {
     try {
-        // Fetch trending sites
-        const response = await fetch('/api/v1/sites/trending');
-        const data = await response.json();
+        // Fetch current active project metadata
+        const currentProject = await window.websim.getCurrentProject();
         
-        if (data.sites && data.sites.length > 0) {
-            const randomSite = data.sites[Math.floor(Math.random() * data.sites.length)];
+        if (currentProject) {
             return {
-                title: randomSite.title,
-                description: randomSite.description,
-                tags: randomSite.tags || [],
-                category: randomSite.category || 'general'
+                title: currentProject.title,
+                description: currentProject.description,
+                tags: [], // Project doesn't include tags in the API
+                category: 'active-project'
+            };
+        }
+        
+        // If no current project, try to get creator info as fallback
+        const creator = await window.websim.getCreator();
+        if (creator) {
+            return {
+                title: `${creator.username}'s Creative Space`,
+                description: "Exploring creativity with AI and code",
+                tags: ["creator", "ai", "websim"],
+                category: 'creator'
             };
         }
     } catch (error) {
-        console.log("Could not fetch Websim data, using fallback");
+        console.log("Could not fetch current project data, using fallback:", error);
     }
     
     // Fallback data
